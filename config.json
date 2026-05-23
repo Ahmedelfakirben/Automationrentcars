@@ -1,0 +1,58 @@
+{
+  "watermark": {
+    "scale": 0.15,
+    "position": "bottom-right",
+    "opacity": 0.95,
+    "margin": 40
+  },
+  "scheduler": {
+    "enabled": true,
+    "slots": [
+      {
+        "id": "slot1",
+        "time": "09:00",
+        "theme": 1,
+        "enabled": true
+      },
+      {
+        "id": "slot2",
+        "time": "14:00",
+        "theme": 3,
+        "enabled": true
+      },
+      {
+        "id": "slot3",
+        "time": "19:00",
+        "theme": 2,
+        "enabled": true
+      }
+    ]
+  },
+  "calendar": {
+    "promotions": [
+      "10% de descuento en reservas de más de 7 días",
+      "Kilometraje ilimitado gratis en alquileres de verano"
+    ],
+    "events": [
+      "Temporada Alta de Verano 2026",
+      "Vacaciones de Marroquíes Residentes en el Extranjero (MRE)",
+      "Turismo de Fin de Semana en Tánger y Tetuán"
+    ]
+  },
+  "publisherChannel": "n8n",
+  "n8nWebhookUrl": "https://n8n.elaribi.ma/webhook-test/publicador-2s1m",
+  "bgReplacementEnabled": true,
+  "publishedPosts": [
+    {
+      "id": "n8n_post_1779552495684",
+      "timestamp": "2026-05-23T16:08:15.708Z",
+      "carId": "seat_ibiza",
+      "imageName": "2_front.jpg",
+      "caption": "Descubre la libertad con el Seat Ibiza FR 2026 🚗. Ideal para el verano o eventos especiales en Tánger y Tetuán. ¿Por qué elegir este modelo?\n\nDisfruta de un 10% de descuento en reservas de más de 7 días.\nNo te preocupes por los kilómetros, ¡tiene kilometraje ilimitado gratis en alquileres de verano!\n\nNo te pierdas la Temporada Alta de Verano 2026, las Vacaciones de los Marroquíes Residentes en el Extranjero (MRE) o el turismo de fin de semana en Tánger y Tetuán. La flota de esta temporada es limitada, ¿reserva ahora y asegúrate de tener tu Seat Ibiza FR 2026?\n\n¡Reserva ahora llamando al +212 6 60 29 28 21 o enviándonos un WhatsApp! Visita nuestra web en rentcartetouan.ma o 2s1mrentcar.com. 📍 RUE 14 AV MOHAMED BENOUNA, QUARTIER BOUJARAH, TÉTOUAN. No te dejes llevar por la espera, ¡disfruta de la libertad con 2S1M Rent Car!\n\nAlquilerdecoches TángerTetuán Verano2026 PromocionesActivas KilometrajeIlimitado Verano2026 VacacionesMRE TurismoFinSemana RentCarLuxury",
+      "imageUrl": "/published/published_1779552495684_2_front.jpg",
+      "facebookUrl": "https://n8n.elaribi.ma/webhook-test/publicador-2s1m",
+      "simulated": false,
+      "channel": "n8n"
+    }
+  ]
+}

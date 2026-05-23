@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2S1M Rent Car - Auto-Publisher Premium Dashboard</title>
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="index.css">
+</head>
+<body class="dark-mode">
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-wrapper">
+          <svg viewBox="0 0 629.69 240.53" class="logo-svg">
+            <!-- Simplified standard representation of the 2S1M paths -->
+            <path fill="#de6f00" d="M242.98,186.48l-50.72-.04,43.98-43.53,68.7-67.15c.23-1.33.18-2.74-.4-3.35s-3.04-.33-3.71.26l-7.59,6.53-54.55,55.16-14.27,13.81c-11.03,10.67-26.01,15.19-41.07,11.92-18.77-4.09-34.44-17.65-38.5-36.78l-.56-9.53c-.69-11.89,4.73-23.96,12.85-32.88l11.44-12.56,50.96-51.13,9.92-8.67c3.74-5.48,8.43-6.11,14.33-6.08l51.75.28-48.2,48.31-10.11,10.12-49.77,49.8c-.2,1.46.87,3.93,1.85,4.67s3.83.29,4.81-.51l6.27-5.14,67.12-66.48c18.81-18.63,48.9-21.43,67.79-3.31,8.32,7.97,15.86,17.46,15.62,29.45l-.26,12.81c-1.78,10.1-6.44,19.89-13.82,27.31l-62.77,63.05c-8.57,8.61-18.26,13.72-31.09,13.71Z"/>
+            <path fill="#e28b3b" d="M4.84,166.6l33.33-24.76,14.1-10.64,18.53-13.68,29.11-22.93,4.4-7.45c5.09-8.62,9.32-21.85,7.66-29.9-1.93-9.34-5.14-18.89-12.65-24.96-6.62-5.35-13.78-9.35-22.16-10.89-29.62-5.45-46.3,6.77-55.54,34.79-1.78,5.4-7.5,7.68-11.84,6.14-5.02-1.78-8.6-5.82-7.3-11.95,1.91-9.04,4.7-19.06,10.66-26.44C22.96,11.75,37.62,5.01,52.68,2.21c24.33-4.51,49.2,3.44,64.95,22.59,7.2,8.75,11.46,19.62,13.62,30.69,3.14,16.12-2.83,35.41-14.34,47.21l-9.43,9.67-4.8,4.01-24.64,19.54-29.95,20.81c-5.35,3.72-10.52,6.53-15.98,11.58l92.63.19c3.14,0,5.69.02,7.65,1.82s2.58,3.97,2.72,7.41c.15,3.71-2.59,8.49-7.64,8.48l-117.33-.08c-4.27,0-8.23-4.72-9.16-7.53-1.37-4.14.22-9.32,3.85-12.02Z"/>
+          </svg>
+        </div>
+        <span class="logo-text">Auto-Publisher</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-tab="dashboard">
+          <i data-lucide="layout-dashboard"></i> Dashboard
+        </button>
+        <button class="nav-btn" data-tab="catalog">
+          <i data-lucide="car"></i> Flota y Catálogo
+        </button>
+        <button class="nav-btn" data-tab="studio">
+          <i data-lucide="sparkles"></i> Content Studio
+        </button>
+        <button class="nav-btn" data-tab="history">
+          <i data-lucide="history"></i> Historial de Posts
+        </button>
+        <button class="nav-btn" data-tab="telemetry">
+          <i data-lucide="activity"></i> Monitoreo y Alertas
+        </button>
+        <button class="nav-btn" data-tab="settings">
+          <i data-lucide="settings"></i> Configuración
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="scheduler-status-badge active" id="scheduler-badge">
+          <div class="pulse-indicator"></div>
+          <span id="scheduler-badge-text">Autopost Activado</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-title">
+          <span class="welcome-text">Panel del Community Manager</span>
+          <h1 id="page-title">Dashboard General</h1>
+        </div>
+        <div class="header-actions">
+          <div id="api-status-warning" class="warning-pill hide">
+            <i data-lucide="alert-triangle"></i> Faltan API Keys
+          </div>
+          <div class="lang-selector-wrapper" style="margin-right: 12px;">
+            <select id="lang-selector" class="form-control" style="padding: 6px 10px; height: 34px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-main); font-weight: 600; cursor: pointer; border-radius: 8px; font-size: 0.85rem; outline: none;">
+              <option value="es">🇪🇸 Español</option>
+              <option value="fr">🇫🇷 Français</option>
+              <option value="en">🇬🇧 English</option>
+            </select>
+          </div>
+          <div class="time-widget">
+            <i data-lucide="calendar"></i>
+            <span id="current-date-span">Sábado, 23 Mayo 2026</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- TAB Content: Dashboard -->
+      <section class="tab-content active" id="tab-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Publicaciones Hoy</span>
+              <div class="stat-icon orange"><i data-lucide="file-text"></i></div>
+            </div>
+            <div class="stat-value" id="stats-published-today">0 / 3</div>
+            <p class="stat-desc">Post diarios programados</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Stories Generadas</span>
+              <div class="stat-icon bronze"><i data-lucide="instagram"></i></div>
+            </div>
+            <div class="stat-value" id="stats-stories-today">0 / 5</div>
+            <p class="stat-desc">Listas en el Kit de Stories</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Total Histórico</span>
+              <div class="stat-icon blue"><i data-lucide="check-circle-2"></i></div>
+            </div>
+            <div class="stat-value" id="stats-total-posts">0</div>
+            <p class="stat-desc">Posts publicados a Facebook</p>
+          </div>
+        </div>
+
+        <div class="dashboard-content-layout">
+          <!-- Schedule Slots status -->
+          <div class="content-card scheduler-overview">
+            <div class="card-header">
+              <h2 class="card-title"><i data-lucide="clock"></i> Horario de Autoposting</h2>
+              <button class="btn btn-secondary btn-xs" onclick="app.switchTab('settings')">Ajustar</button>
+            </div>
+            <div class="slots-list" id="dashboard-slots-list">
+              <!-- Dynamically populated -->
+              <div class="loading-placeholder">Cargando horario...</div>
+            </div>
+          </div>
+
+          <!-- Quick Actions & Tips -->
+          <div class="content-card quick-actions-card">
+            <div class="card-header">
+              <h2 class="card-title"><i data-lucide="zap"></i> Acciones Rápidas</h2>
+            </div>
+            <div class="quick-actions-grid">
+              <button class="action-btn" onclick="app.openStudioWithTheme(1)">
+                <i data-lucide="plane-takeoff"></i>
+                <span>Crear Post Aeropuertos</span>
+              </button>
+              <button class="action-btn" onclick="app.openStudioWithTheme(3)">
+                <i data-lucide="book-open"></i>
+                <span>Crear Storytelling / Tips</span>
+              </button>
+              <button class="action-btn" onclick="app.openStudioWithTheme(2)">
+                <i data-lucide="calendar-heart"></i>
+                <span>Crear Promo de Festivo</span>
+              </button>
+              <button class="action-btn" onclick="app.switchTab('catalog')">
+                <i data-lucide="image"></i>
+                <span>Ver Galería de Fotos</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent published list -->
+        <div class="content-card recent-posts-card">
+          <div class="card-header">
+            <h2 class="card-title"><i data-lucide="facebook"></i> Últimas Publicaciones en Facebook</h2>
+          </div>
+          <div class="recent-posts-grid" id="dashboard-recent-posts">
+            <!-- Dynamically populated -->
+            <div class="empty-state">
+              <i data-lucide="image-off"></i>
+              <p>No se han realizado publicaciones aún</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB Content: Catalog -->
+      <section class="tab-content hide" id="tab-catalog">
+        <div class="catalog-instructions">
+          <p>Explora las fotos fotorrealistas de alta resolución de la flota de 2S1M Rent Car. Selecciona cualquier imagen para iniciar el Content Studio y personalizar tu post con la marca de agua.</p>
+        </div>
+        <div id="catalog-grid" class="catalog-grid">
+          <!-- Dynamically populated with car cards -->
+          <div class="loading-placeholder">Cargando flota de vehículos...</div>
+        </div>
+      </section>
+
+      <!-- TAB Content: Content Studio -->
+      <section class="tab-content hide" id="tab-studio">
+        <div class="studio-layout">
+          <!-- Left Panel: Media Preview & Watermark Adjuster -->
+          <div class="studio-media-panel">
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="eye"></i> Vista Previa del Post</h3>
+              </div>
+              <div class="preview-container">
+                <div class="img-preview-wrapper" id="preview-image-wrapper">
+                  <!-- The watermarked preview loads here -->
+                  <div class="empty-preview-state">
+                    <i data-lucide="car-front"></i>
+                    <p>Selecciona una imagen del catálogo para ver el resultado de la marca de agua.</p>
+                    <button class="btn btn-primary" onclick="app.switchTab('catalog')">Ir al Catálogo</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Preview Source Toggle Actions -->
+              <div class="preview-actions-panel card-section border-top" style="display: flex; gap: 10px; justify-content: center; padding: 12px 15px; background: rgba(0,0,0,0.15);">
+                <button type="button" class="btn btn-secondary btn-sm active" id="btn-use-original-photo" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <i data-lucide="image" style="width: 15px; height: 15px;"></i> Foto Original
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-preview-ai-bg" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, var(--color-primary) 0%, #a855f7 100%); border: none;">
+                  <i data-lucide="sparkles" style="width: 15px; height: 15px;"></i> Generar Fondo con IA
+                </button>
+              </div>
+
+              <!-- Watermark Controls -->
+              <div class="watermark-controls-panel card-section border-top">
+                <h4 class="section-title"><i data-lucide="sliders"></i> Ajustes de Marca de Agua (SVG)</h4>
+                
+                <div class="control-row">
+                  <label>Posición del Logo:</label>
+                  <div class="position-btn-group" id="watermark-position-group">
+                    <button class="btn btn-pos" data-pos="top-left" title="Arriba Izquierda">NW</button>
+                    <button class="btn btn-pos" data-pos="top-right" title="Arriba Derecha">NE</button>
+                    <button class="btn btn-pos" data-pos="bottom-left" title="Abajo Izquierda">SW</button>
+                    <button class="btn btn-pos active" data-pos="bottom-right" title="Abajo Derecha">SE</button>
+                  </div>
+                </div>
+
+                <div class="control-row">
+                  <label for="watermark-scale">Escala del Logo: <span id="scale-val">15%</span></label>
+                  <input type="range" id="watermark-scale" min="0.05" max="0.30" step="0.01" value="0.15">
+                </div>
+
+                <div class="control-row">
+                  <label for="watermark-opacity">Opacidad: <span id="opacity-val">95%</span></label>
+                  <input type="range" id="watermark-opacity" min="0.2" max="1.0" step="0.05" value="0.95">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Panel: AI Generation Workspace -->
+          <div class="studio-text-panel">
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="cpu"></i> Asistente de Redacción IA</h3>
+              </div>
+              
+              <!-- Setup for Generation -->
+              <div class="generation-setup-section card-section">
+                <div class="form-group">
+                  <label for="studio-car-select">Coche seleccionado:</label>
+                  <select id="studio-car-select" class="form-control">
+                    <!-- Dynamically filled -->
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label for="studio-image-select">Imagen seleccionada:</label>
+                  <select id="studio-image-select" class="form-control">
+                    <!-- Dynamically filled -->
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>Tema del Post:</label>
+                  <div class="theme-btn-group" id="studio-theme-group">
+                    <button class="btn btn-theme active" data-theme="1">
+                      <i data-lucide="plane"></i>
+                      <div class="theme-text-info">
+                        <strong>Tema 1</strong>
+                        <span>Aeropuertos y Entregas</span>
+                      </div>
+                    </button>
+                    <button class="btn btn-theme" data-theme="2">
+                      <i data-lucide="gift"></i>
+                      <div class="theme-text-info">
+                        <strong>Tema 2</strong>
+                        <span>Promociones y Festivos</span>
+                      </div>
+                    </button>
+                    <button class="btn btn-theme" data-theme="3">
+                      <i data-lucide="sparkles"></i>
+                      <div class="theme-text-info">
+                        <strong>Tema 3</strong>
+                        <span>Consejos y Narrativa</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <button class="btn btn-primary btn-block" id="btn-generate-post">
+                  <i data-lucide="refresh-cw"></i> Generar Contenido con Groq
+                </button>
+              </div>
+
+              <!-- Interactive Text Editors -->
+              <div class="editor-section card-section border-top hide" id="editor-workspace">
+                <div class="form-group" id="editor-bg-prompt-group">
+                  <label for="editor-bg-prompt">Prompt de Fondo IA (Photoroom - Inglés):</label>
+                  <textarea id="editor-bg-prompt" class="form-control" rows="2" placeholder="Parked at Marina Bay Tangier, cinematic warm lighting, professional automotive photography, 8k"></textarea>
+                </div>
+
+                <div class="form-group">
+                  <div class="label-with-action">
+                    <label for="editor-post-text">Texto de la Publicación (Bilingüe FR / ES):</label>
+                    <button class="btn btn-xs btn-link" onclick="app.copyToClipboard('editor-post-text')">
+                      <i data-lucide="copy"></i> Copiar
+                    </button>
+                  </div>
+                  <textarea id="editor-post-text" class="form-control post-textarea" rows="12"></textarea>
+                </div>
+
+                <div class="form-group">
+                  <div class="label-with-action">
+                    <label for="editor-hashtags">Hashtags recomendados:</label>
+                    <button class="btn btn-xs btn-link" onclick="app.copyToClipboard('editor-hashtags')">
+                      <i data-lucide="copy"></i> Copiar
+                    </button>
+                  </div>
+                  <input type="text" id="editor-hashtags" class="form-control">
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="publish-action-bar">
+                  <div class="simulation-alert hide" id="fb-simulation-notice">
+                    <i data-lucide="info"></i> Modo Simulación Activo (Sin credenciales en .env)
+                  </div>
+                  <button class="btn btn-success btn-large btn-block" id="btn-publish-post">
+                    <i data-lucide="send"></i> Publicar Ahora en Facebook
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- STORIES KIT COMPONENT -->
+            <div class="content-card stories-kit-card hide" id="stories-kit-workspace">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="instagram"></i> Kit de 5 Stories Diarias</h3>
+                <button class="btn btn-secondary btn-xs" id="btn-generate-stories">
+                  <i data-lucide="refresh-cw"></i> Regenerar Stories
+                </button>
+              </div>
+              <div class="card-section">
+                <p class="section-desc">Aquí tienes 5 ideas de Stories bilingües listas para publicar con un clic. Copia los textos breves y usa la foto con marca de agua para colocarlos de fondo en tu Instagram/Facebook.</p>
+                <div class="stories-grid" id="stories-grid-container">
+                  <!-- Stories items dynamically populated -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB Content: History -->
+      <section class="tab-content hide" id="tab-history">
+        <div class="content-card">
+          <div class="card-header">
+            <h2 class="card-title"><i data-lucide="list"></i> Registro de Posts Publicados</h2>
+          </div>
+          <div class="card-section">
+            <div class="history-table-wrapper">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Fecha y Hora</th>
+                    <th>Coche e Imagen</th>
+                    <th>Tipo</th>
+                    <th>Vista de Contenido</th>
+                    <th>Enlace Publicación</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body">
+                  <!-- Dynamically populated -->
+                  <tr>
+                    <td colspan="6" class="table-empty">No hay publicaciones registradas.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+       <!-- TAB Content: Telemetry & Alerts -->
+      <section class="tab-content hide" id="tab-telemetry">
+        <div class="telemetry-grid-layout" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+          
+          <!-- Alerts System Card -->
+          <div class="content-card alert-system-card">
+            <div class="card-header" style="background: linear-gradient(135deg, rgba(212, 137, 49, 0.08) 0%, rgba(20, 20, 20, 0.4) 100%); border-bottom: 1px solid var(--border-color);">
+              <h2 class="card-title" style="color: var(--color-primary);"><i data-lucide="bell"></i> Sistema de Alertas de Consumo</h2>
+            </div>
+            <div class="card-section">
+              <p class="section-desc">Monitorea el consumo de solicitudes e identifica si alguna herramienta de IA o base de datos está cerca de alcanzar sus límites.</p>
+              
+              <div class="alerts-status-container" id="alerts-status-box" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-top: 15px;">
+                <!-- Alert states dynamically generated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Token & Request Statistics Grids -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+            
+            <!-- Groq Llama 3.1 Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="cpu" style="color: #6366f1;"></i> Groq AI Llama 3.1</h3>
+              </div>
+              <div class="card-section">
+                <div class="usage-stat-row">
+                  <span>Solicitudes Totales:</span>
+                  <strong id="stat-groq-requests">0</strong>
+                </div>
+                <div class="usage-stat-row">
+                  <span>Tokens de Entrada (Prompt):</span>
+                  <strong id="stat-groq-prompt-tokens">0</strong>
+                </div>
+                <div class="usage-stat-row">
+                  <span>Tokens de Salida (Completion):</span>
+                  <strong id="stat-groq-completion-tokens">0</strong>
+                </div>
+                <div class="usage-stat-row" style="border-bottom: none; font-size: 1.1em; color: var(--color-primary);">
+                  <span>Tokens Totales:</span>
+                  <strong id="stat-groq-total-tokens">0</strong>
+                </div>
+                <div class="progress-bar-container" style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 12px;">
+                  <div id="stat-groq-progress-bar" style="background: var(--color-primary); width: 0%; height: 100%; transition: width 0.5s ease;"></div>
+                </div>
+                <div style="font-size: 0.85em; opacity: 0.7; margin-top: 6px; text-align: right;" id="stat-groq-percentage-text">0% del límite sugerido</div>
+              </div>
+            </div>
+
+            <!-- Photoroom Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="sparkles" style="color: #a855f7;"></i> Photoroom AI (Fondos)</h3>
+              </div>
+              <div class="card-section">
+                <div class="usage-stat-row">
+                  <span>Solicitudes Totales:</span>
+                  <strong id="stat-photoroom-requests">0</strong>
+                </div>
+                <div class="usage-stat-row" style="color: #22c55e;">
+                  <span>Generaciones Exitosas:</span>
+                  <strong id="stat-photoroom-success">0</strong>
+                </div>
+                <div class="usage-stat-row" style="color: #ef4444;">
+                  <span>Generaciones Fallidas:</span>
+                  <strong id="stat-photoroom-failed">0</strong>
+                </div>
+                <div class="usage-stat-row" style="border-bottom: none; font-size: 1.05em; color: #a855f7;">
+                  <span>Costo Estimado (Créditos):</span>
+                  <strong id="stat-photoroom-cost">0</strong>
+                </div>
+                <div class="progress-bar-container" style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 12px;">
+                  <div id="stat-photoroom-progress-bar" style="background: #a855f7; width: 0%; height: 100%; transition: width 0.5s ease;"></div>
+                </div>
+                <div style="font-size: 0.85em; opacity: 0.7; margin-top: 6px; text-align: right;" id="stat-photoroom-percentage-text">0% del límite</div>
+              </div>
+            </div>
+
+            <!-- Supabase Cloud Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="database" style="color: #22c55e;"></i> Supabase Cloud (VPS)</h3>
+              </div>
+              <div class="card-section">
+                <div class="usage-stat-row">
+                  <span>Lecturas de Base de Datos:</span>
+                  <strong id="stat-supabase-reads">0</strong>
+                </div>
+                <div class="usage-stat-row">
+                  <span>Escrituras de Base de Datos:</span>
+                  <strong id="stat-supabase-writes">0</strong>
+                </div>
+                <div class="usage-stat-row" style="color: #3b82f6;">
+                  <span>Descargas Storage (Download):</span>
+                  <strong id="stat-supabase-downloads">0</strong>
+                </div>
+                <div class="usage-stat-row" style="border-bottom: none; color: #22c55e;">
+                  <span>Subidas Storage (Upload):</span>
+                  <strong id="stat-supabase-uploads">0</strong>
+                </div>
+                <div class="progress-bar-container" style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-top: 12px;">
+                  <div id="stat-supabase-progress-bar" style="background: #22c55e; width: 0%; height: 100%; transition: width 0.5s ease;"></div>
+                </div>
+                <div style="font-size: 0.85em; opacity: 0.7; margin-top: 6px; text-align: right;" id="stat-supabase-percentage-text">0% del límite de almacenamiento</div>
+              </div>
+            </div>
+
+            <!-- Facebook & N8N Webhooks Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <h3 class="card-title"><i data-lucide="share-2" style="color: #3b82f6;"></i> Publicaciones FB / N8N</h3>
+              </div>
+              <div class="card-section">
+                <div class="usage-stat-row">
+                  <span>Intentos Facebook Page:</span>
+                  <strong id="stat-pub-fb-attempts">0</strong>
+                </div>
+                <div class="usage-stat-row" style="color: #22c55e;">
+                  <span>Éxitos Facebook Page:</span>
+                  <strong id="stat-pub-fb-success">0</strong>
+                </div>
+                <div class="usage-stat-row">
+                  <span>Intentos N8N Webhook:</span>
+                  <strong id="stat-pub-n8n-attempts">0</strong>
+                </div>
+                <div class="usage-stat-row" style="border-bottom: none; color: #22c55e;">
+                  <span>Éxitos N8N Webhook:</span>
+                  <strong id="stat-pub-n8n-success">0</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Threshold Settings Form -->
+          <div class="content-card">
+            <div class="card-header">
+              <h3 class="card-title"><i data-lucide="sliders"></i> Ajustes de Alertas y Límites</h3>
+            </div>
+            <div class="card-section">
+              <p class="section-desc">Configura los límites mensuales o diarios para detonar las alertas en color amarillo y rojo en el panel.</p>
+              
+              <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+                <div class="form-group">
+                  <label for="threshold-groq-tokens">Límite Mensual Groq Tokens:</label>
+                  <input type="number" id="threshold-groq-tokens" class="form-control" value="500000">
+                </div>
+                <div class="form-group">
+                  <label for="threshold-photoroom-requests">Límite Diario Photoroom (Fotos):</label>
+                  <input type="number" id="threshold-photoroom-requests" class="form-control" value="100">
+                </div>
+                <div class="form-group">
+                  <label for="threshold-supabase-storage">Límite Supabase Storage (Subidas):</label>
+                  <input type="number" id="threshold-supabase-storage" class="form-control" value="200">
+                </div>
+              </div>
+
+              <div class="form-actions" style="display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" id="btn-save-thresholds">Guardar Límites de Alertas</button>
+                <button type="button" class="btn btn-secondary" id="btn-reset-telemetry" style="border-color: #ef4444; color: #ef4444;">
+                  <i data-lucide="trash-2"></i> Reiniciar Estadísticas
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB Content: Settings -->
+      <section class="tab-content hide" id="tab-settings">
+        <div class="settings-grid-layout">
+          <!-- Configuration -->
+          <div class="content-card">
+            <div class="card-header">
+              <h2 class="card-title"><i data-lucide="sliders"></i> Ajustes de Publicación Automática</h2>
+            </div>
+            <div class="card-section">
+              <form id="settings-form">
+                <div class="form-group checkbox-group">
+                  <input type="checkbox" id="settings-scheduler-enabled" checked>
+                  <label for="settings-scheduler-enabled" class="checkbox-label">Activar Programación Automática (Scheduler en segundo plano)</label>
+                </div>
+
+                <div class="form-group checkbox-group" style="margin-top: 10px;">
+                  <input type="checkbox" id="settings-bg-replacement-enabled">
+                  <label for="settings-bg-replacement-enabled" class="checkbox-label">Activar Reemplazo Generativo de Fondo (IA Photoroom)</label>
+                </div>
+
+                <div class="divider"></div>
+
+                <h3 class="sub-title"><i data-lucide="share-2"></i> Integración y Canal de Publicación</h3>
+                <p class="section-desc">Selecciona si prefieres enviar los posts generados directamente a tu página de Facebook o empujarlos al Webhook de tu N8N.</p>
+
+                <div class="form-group">
+                  <label for="settings-publisher-channel">Canal de Publicación:</label>
+                  <select id="settings-publisher-channel" class="form-control">
+                    <option value="facebook">Directo a Facebook Page</option>
+                    <option value="n8n">Webhook de N8N (Recomendado)</option>
+                  </select>
+                </div>
+
+                <div class="form-group" id="n8n-url-group">
+                  <label for="settings-n8n-webhook">URL del Webhook de N8N:</label>
+                  <input type="text" id="settings-n8n-webhook" class="form-control" placeholder="https://primary-production.up.railway.app/webhook/..." value="">
+                </div>
+
+                <div class="divider"></div>
+
+                <h3 class="sub-title"><i data-lucide="key-round"></i> Credenciales de la API (Privado y Local)</h3>
+                <p class="section-desc">Estas claves se guardan localmente en tu archivo .env y nunca se comparten externamente.</p>
+
+                <div class="form-group">
+                  <label for="settings-groq-key">Groq API Key (Llama 3.1):</label>
+                  <input type="password" id="settings-groq-key" class="form-control" placeholder="gsk_..." value="">
+                </div>
+
+                <div class="form-group">
+                  <label for="settings-fb-token">Facebook Page Access Token:</label>
+                  <input type="password" id="settings-fb-token" class="form-control" placeholder="EAAG..." value="">
+                </div>
+
+                <div class="form-group">
+                  <label for="settings-fb-page-id">Facebook Page ID:</label>
+                  <input type="text" id="settings-fb-page-id" class="form-control" placeholder="61589242743757" value="61589242743757">
+                </div>
+
+                <div class="form-group">
+                  <label for="settings-photoroom-key">Photoroom API Key:</label>
+                  <input type="password" id="settings-photoroom-key" class="form-control" placeholder="prod_..." value="">
+                </div>
+
+                <div class="form-group">
+                  <label for="settings-supabase-key">Supabase Service Role Key:</label>
+                  <input type="password" id="settings-supabase-key" class="form-control" placeholder="eyJhb..." value="">
+                </div>
+
+                <div class="divider"></div>
+
+                <h3 class="sub-title"><i data-lucide="calendar"></i> Horarios de Slots Diarios (3 Post recomendados)</h3>
+                <p class="section-desc">Define las horas en formato 24 horas y los temas asignados para las 3 publicaciones diarias.</p>
+
+                <div class="slots-config-container">
+                  <!-- Slot 1 -->
+                  <div class="slot-config-row">
+                    <div class="slot-badge orange">Slot 1</div>
+                    <div class="form-group compact">
+                      <label>Hora:</label>
+                      <input type="text" id="slot-1-time" class="form-control format-time" placeholder="09:00" value="09:00">
+                    </div>
+                    <div class="form-group compact">
+                      <label>Tema del Post:</label>
+                      <select id="slot-1-theme" class="form-control">
+                        <option value="1" selected>Tema 1 - Aeropuertos y Entregas</option>
+                        <option value="2">Tema 2 - Promociones y Festivos</option>
+                        <option value="3">Tema 3 - Consejos y Narrativa</option>
+                      </select>
+                    </div>
+                    <div class="form-group compact checkbox-compact">
+                      <input type="checkbox" id="slot-1-enabled" checked>
+                      <label for="slot-1-enabled">Activo</label>
+                    </div>
+                  </div>
+
+                  <!-- Slot 2 -->
+                  <div class="slot-config-row">
+                    <div class="slot-badge blue">Slot 2</div>
+                    <div class="form-group compact">
+                      <label>Hora:</label>
+                      <input type="text" id="slot-2-time" class="form-control format-time" placeholder="14:00" value="14:00">
+                    </div>
+                    <div class="form-group compact">
+                      <label>Tema del Post:</label>
+                      <select id="slot-2-theme" class="form-control">
+                        <option value="1">Tema 1 - Aeropuertos y Entregas</option>
+                        <option value="2">Tema 2 - Promociones y Festivos</option>
+                        <option value="3" selected>Tema 3 - Consejos y Narrativa</option>
+                      </select>
+                    </div>
+                    <div class="form-group compact checkbox-compact">
+                      <input type="checkbox" id="slot-2-enabled" checked>
+                      <label for="slot-2-enabled">Activo</label>
+                    </div>
+                  </div>
+
+                  <!-- Slot 3 -->
+                  <div class="slot-config-row">
+                    <div class="slot-badge bronze">Slot 3</div>
+                    <div class="form-group compact">
+                      <label>Hora:</label>
+                      <input type="text" id="slot-3-time" class="form-control format-time" placeholder="19:00" value="19:00">
+                    </div>
+                    <div class="form-group compact">
+                      <label>Tema del Post:</label>
+                      <select id="slot-3-theme" class="form-control">
+                        <option value="1">Tema 1 - Aeropuertos y Entregas</option>
+                        <option value="2" selected>Tema 2 - Promociones y Festivos</option>
+                        <option value="3">Tema 3 - Consejos y Narrativa</option>
+                      </select>
+                    </div>
+                    <div class="form-group compact checkbox-compact">
+                      <input type="checkbox" id="slot-3-enabled" checked>
+                      <label for="slot-3-enabled">Activo</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="button" class="btn btn-primary" id="btn-save-settings">Guardar Horarios y Ajustes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Calendar Promotions / Events Editor -->
+          <div class="content-card">
+            <div class="card-header">
+              <h2 class="card-title"><i data-lucide="calendar-days"></i> Calendario de Promociones y Eventos</h2>
+            </div>
+            <div class="card-section">
+              <p class="section-desc">Escribe las promociones del mes y eventos festivos locales (como verano, Eid, fin de año, etc.) para que la IA los integre automáticamente al redactar posts del **Tema 2 (Promociones y Festivos)**.</p>
+              
+              <div class="form-group">
+                <label>Promociones Activas (una por línea):</label>
+                <textarea id="settings-promotions-list" class="form-control" rows="4"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label>Eventos y Días Festivos (uno por línea):</label>
+                <textarea id="settings-events-list" class="form-control" rows="4"></textarea>
+              </div>
+
+              <div class="form-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" id="btn-save-calendar">Actualizar Calendario de Eventos</button>
+                <button type="button" class="btn btn-secondary" id="btn-generate-calendar">
+                  <i data-lucide="sparkles"></i> Generar con IA
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Lucide icons compiler -->
+  <script>
+    lucide.createIcons();
+  </script>
+  <!-- Frontend Javascript Core -->
+  <script src="app.js"></script>
+</body>
+</html>

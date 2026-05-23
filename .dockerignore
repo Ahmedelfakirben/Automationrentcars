@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.local
+.system_generated
+*.log
+supabase_setup.sql
+upload_assets.js
+package-lock.json
+Dockerfile
+.dockerignore

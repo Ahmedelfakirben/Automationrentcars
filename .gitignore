@@ -1,0 +1,71 @@
+# ==========================
+# SENSIBLE - NUNCA SUBIR
+# ==========================
+.env
+*.env
+.env.*
+!.env.example
+
+# ==========================
+# DEPENDENCIAS NODE
+# ==========================
+node_modules/
+
+# ==========================
+# CARPETAS DE IMÁGENES PESADAS (Google Drive / assets locales)
+# ==========================
+Commercial-*/
+Opel Corsa-*/
+Peugeot 208-*/
+Renault Clio 5-*/
+SEAT Ibiza FR automatic-*/
+
+# ==========================
+# IMÁGENES GENERADAS / PUBLICADAS
+# ==========================
+public/published/
+public/published/**
+
+# ==========================
+# ARCHIVOS GRANDES LOCALES
+# ==========================
+*.png
+*.jpg
+*.jpeg
+ATetouan.png
+flota.png
+nuestroscoches.jpg
+contact-bg.jpg
+fotoaeropuertotetouan.jpg
+
+# EXCEPCIÓN: mantener favicon SVG
+!favicon.svg
+!public/*.svg
+!public/*.png
+!public/*.jpg
+
+# ==========================
+# SCRIPTS DE TEST Y DEBUG (opcionales)
+# ==========================
+test_*.js
+set_n8n_channel.js
+check_db.js
+upload_assets.js
+
+# ==========================
+# LOGS
+# ==========================
+*.log
+npm-debug.log*
+
+# ==========================
+# OS
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# IDE
+# ==========================
+.vscode/
+.idea/
