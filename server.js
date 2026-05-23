@@ -916,8 +916,13 @@ const verifyAuth = async (req, res, next) => {
 
 // Apply auth middleware to all protected API routes
 app.use('/api/', (req, res, next) => {
-  // Skip auth for the public auth-config endpoint
-  if (req.path === '/auth-config') return next();
+  // Public routes — no auth required:
+  // - /auth-config  : login page needs Supabase config
+  // - /preview (GET): <img> tags can't send Bearer headers
+  // - /cars (GET)   : catalog listing used by img src
+  const publicPaths = ['/auth-config', '/cars', '/preview'];
+  if (publicPaths.includes(req.path)) return next();
+  if (req.path.startsWith('/preview')) return next(); // with query strings
   return verifyAuth(req, res, next);
 });
 
