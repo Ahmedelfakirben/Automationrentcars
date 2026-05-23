@@ -3,7 +3,7 @@
 # ========================================================
 FROM node:20-alpine AS base
 
-# Instalar dependencias del sistema necesarias
+# Instalar dependencias del sistema necesarias para sharp (procesamiento de imágenes)
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
@@ -11,8 +11,8 @@ WORKDIR /app
 # Copiar descriptores de dependencias
 COPY package*.json ./
 
-# Instalar dependencias de producción de forma limpia
-RUN npm ci --only=production
+# Instalar dependencias de producción (omitir dev)
+RUN npm ci --omit=dev
 
 # Copiar todo el código de la aplicación al contenedor
 COPY . .

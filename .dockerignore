@@ -6,6 +6,5 @@ node_modules
 *.log
 supabase_setup.sql
 upload_assets.js
-package-lock.json
-Dockerfile
-.dockerignore
+test_*.js
+set_n8n_channel.js
