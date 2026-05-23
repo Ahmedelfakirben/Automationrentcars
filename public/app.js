@@ -2,6 +2,77 @@
  * 2S1M Rent Car - Premium Auto-Publisher Client App
  */
 
+// ============================================================
+// AUTH LAYER — Session check + helper
+// ============================================================
+
+// Returns stored access token or null
+function getAccessToken() {
+  return localStorage.getItem('2s1m_access_token') || null;
+}
+
+// Authenticated fetch — automatically adds Bearer token header
+async function authFetch(url, options = {}) {
+  const token = getAccessToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const response = await fetch(url, { ...options, headers });
+  // If 401, session expired — redirect to login
+  if (response.status === 401) {
+    localStorage.removeItem('2s1m_access_token');
+    localStorage.removeItem('2s1m_refresh_token');
+    localStorage.removeItem('2s1m_user');
+    window.location.replace('/login.html');
+    throw new Error('Sesión expirada. Redirigiendo al login...');
+  }
+  return response;
+}
+
+// Check session on page load
+(async function checkSession() {
+  const token = getAccessToken();
+  if (!token) {
+    window.location.replace('/login.html');
+    return;
+  }
+  // Verify token is still valid
+  try {
+    const res = await fetch('/api/auth-config');
+    const cfg = await res.json();
+    if (cfg.url) {
+      const sb = supabase.createClient(cfg.url, cfg.anonKey);
+      const { data: { user }, error } = await sb.auth.getUser(token);
+      if (error || !user) throw new Error('Invalid');
+      // Show username in header
+      const storedUser = JSON.parse(localStorage.getItem('2s1m_user') || '{}');
+      const nameEl = document.getElementById('logged-user-name');
+      if (nameEl) nameEl.textContent = storedUser.username || user.user_metadata?.username || 'sysadmin';
+    }
+  } catch (e) {
+    // Token invalid or Supabase not configured—allow access in local mode
+    console.warn('[Auth] Session check:', e.message);
+  }
+
+  // Wire logout button
+  const btnLogout = document.getElementById('btn-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      try {
+        const token = getAccessToken();
+        const cfg = await (await fetch('/api/auth-config')).json();
+        if (cfg.url) {
+          const sb = supabase.createClient(cfg.url, cfg.anonKey);
+          await sb.auth.signOut();
+        }
+      } catch(e) { console.warn('Logout error:', e); }
+      localStorage.removeItem('2s1m_access_token');
+      localStorage.removeItem('2s1m_refresh_token');
+      localStorage.removeItem('2s1m_user');
+      window.location.replace('/login.html');
+    });
+  }
+})();
+
 const TRANSLATIONS = {
   es: {
     nav_dashboard: 'Dashboard',
@@ -266,7 +337,7 @@ class AutoPublisherApp {
   // Fetch cars catalog from workspace backend
   async fetchCars() {
     try {
-      const response = await fetch('/api/cars');
+      const response = await authFetch('/api/cars');
       if (!response.ok) throw new Error("No se pudo escanear el directorio");
       this.cars = await response.ok ? await response.json() : [];
       this.renderCatalog();
@@ -280,7 +351,7 @@ class AutoPublisherApp {
   // Fetch configs (Schedules, Promos, Watermarks)
   async fetchConfig() {
     try {
-      const response = await fetch('/api/config');
+      const response = await authFetch('/api/config');
       if (!response.ok) throw new Error("No se pudo cargar la configuración");
       this.config = await response.json();
 
@@ -722,7 +793,7 @@ class AutoPublisherApp {
         btnPreviewAiBg.innerHTML = `<div class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color:#fff"></div> Procesando...`;
 
         try {
-          const response = await fetch('/api/preview-ai', {
+          const response = await authFetch('/api/preview-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -791,7 +862,7 @@ class AutoPublisherApp {
       btnGenerate.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div> Redactando copy...`;
 
       try {
-        const response = await fetch('/api/generate', {
+        const response = await authFetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -852,7 +923,7 @@ class AutoPublisherApp {
         btnPublish.innerHTML = `<div class="spinner" style="width: 18px; height: 18px; border-width: 2px; border-top-color:#fff"></div> Publicando...`;
 
         try {
-          const response = await fetch('/api/publish', {
+          const response = await authFetch('/api/publish', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -918,7 +989,7 @@ class AutoPublisherApp {
     `;
 
     try {
-      const response = await fetch('/api/generate-stories', {
+      const response = await authFetch('/api/generate-stories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ carId: this.selectedCarId })
@@ -1015,7 +1086,7 @@ class AutoPublisherApp {
             slots.push({ id: `slot${i}`, time, theme, enabled });
           }
 
-          const response = await fetch('/api/config', {
+          const response = await authFetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1065,7 +1136,7 @@ class AutoPublisherApp {
           const promotions = promosText.split('\n').map(line => line.trim()).filter(line => line !== "");
           const events = eventsText.split('\n').map(line => line.trim()).filter(line => line !== "");
 
-          const response = await fetch('/api/config', {
+          const response = await authFetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1098,7 +1169,7 @@ class AutoPublisherApp {
         if (window.lucide) window.lucide.createIcons();
 
         try {
-          const response = await fetch('/api/generate-calendar', {
+          const response = await authFetch('/api/generate-calendar', {
             method: 'POST'
           });
 
@@ -1113,7 +1184,7 @@ class AutoPublisherApp {
           if (eventsTextarea) eventsTextarea.value = (data.events || []).join('\n');
 
           // Save automatically to DB
-          const saveResponse = await fetch('/api/config', {
+          const saveResponse = await authFetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1447,7 +1518,7 @@ class AutoPublisherApp {
           const photoroomRequestLimit = parseInt(document.getElementById('threshold-photoroom-requests').value) || 100;
           const supabaseStorageLimit = parseInt(document.getElementById('threshold-supabase-storage').value) || 200;
 
-          const response = await fetch('/api/config', {
+          const response = await authFetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1485,7 +1556,7 @@ class AutoPublisherApp {
         btnResetTelemetry.innerText = 'Reiniciando...';
 
         try {
-          const response = await fetch('/api/usage/reset', {
+          const response = await authFetch('/api/usage/reset', {
             method: 'POST'
           });
 

@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="index.css">
 </head>
@@ -80,6 +82,17 @@
           <div class="time-widget">
             <i data-lucide="calendar"></i>
             <span id="current-date-span">Sábado, 23 Mayo 2026</span>
+          </div>
+          <!-- User badge + logout -->
+          <div id="user-session-badge" style="display:flex;align-items:center;gap:8px;margin-left:12px;">
+            <div style="display:flex;align-items:center;gap:6px;background:rgba(222,111,0,0.12);border:1px solid rgba(222,111,0,0.25);border-radius:100px;padding:5px 12px;">
+              <i data-lucide="shield-check" style="width:13px;height:13px;color:#de6f00;"></i>
+              <span id="logged-user-name" style="font-size:12px;font-weight:600;color:#e28b3b;letter-spacing:0.05em;">sysadmin</span>
+            </div>
+            <button id="btn-logout" title="Cerrar sesión" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:5px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;color:#fca5a5;font-size:12px;font-weight:600;font-family:inherit;transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.18)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+              <i data-lucide="log-out" style="width:13px;height:13px;"></i>
+              Salir
+            </button>
           </div>
         </div>
       </header>

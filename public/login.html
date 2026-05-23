@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2S1M Auto-Publisher — Acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:      #0a0c10;
+      --bg-card:      #111318;
+      --bg-input:     #1a1d25;
+      --border:       rgba(255,255,255,0.07);
+      --border-focus: rgba(222,111,0,0.6);
+      --accent:       #de6f00;
+      --accent-light: #e28b3b;
+      --accent-glow:  rgba(222,111,0,0.25);
+      --text-primary: #f0f2f7;
+      --text-muted:   #6b7280;
+      --error:        #ef4444;
+      --success:      #22c55e;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* ── Animated Background ── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 50%, rgba(222,111,0,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 60% at 80% 20%, rgba(226,139,59,0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 70% at 60% 90%, rgba(222,111,0,0.04) 0%, transparent 60%);
+    }
+
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    }
+
+    /* ── Floating orbs ── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      animation: drift 8s ease-in-out infinite;
+      z-index: 0;
+    }
+    .orb-1 { width: 300px; height: 300px; background: var(--accent); top: -80px; left: -80px; animation-delay: 0s; }
+    .orb-2 { width: 200px; height: 200px; background: var(--accent-light); bottom: -60px; right: -60px; animation-delay: 3s; }
+    .orb-3 { width: 150px; height: 150px; background: var(--accent); top: 50%; right: 20%; animation-delay: 5s; }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%       { transform: translate(20px, -20px) scale(1.05); }
+      66%       { transform: translate(-15px, 15px) scale(0.95); }
+    }
+
+    /* ── Layout ── */
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(17, 19, 24, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 40px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04) inset,
+        0 32px 64px rgba(0,0,0,0.5),
+        0 0 80px rgba(222,111,0,0.06);
+      animation: cardIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+
+    /* ── Logo ── */
+    .logo-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    .logo-svg-wrap {
+      width: 80px;
+      height: 40px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(222,111,0,0.12);
+      border: 1px solid rgba(222,111,0,0.25);
+      border-radius: 100px;
+      padding: 4px 12px;
+    }
+
+    .logo-badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .logo-badge-text {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+    }
+
+    .card-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+    }
+
+    .card-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* ── Form ── */
+    .form { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-muted);
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-primary);
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      padding: 13px 14px 13px 42px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-wrap input::placeholder { color: var(--text-muted); }
+
+    .input-wrap input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .input-wrap input:focus + .input-icon,
+    .input-wrap:focus-within .input-icon {
+      color: var(--accent-light);
+    }
+
+    /* Password toggle */
+    .toggle-pw {
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+    }
+    .toggle-pw:hover { color: var(--accent-light); }
+
+    /* ── Submit Button ── */
+    .btn-login {
+      margin-top: 8px;
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+      letter-spacing: 0.02em;
+      box-shadow: 0 4px 24px rgba(222,111,0,0.35);
+    }
+
+    .btn-login::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+      border-radius: inherit;
+    }
+
+    .btn-login:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 32px rgba(222,111,0,0.45);
+    }
+
+    .btn-login:active:not(:disabled) { transform: translateY(0); }
+
+    .btn-login:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-login .spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .btn-login.loading .spinner { display: inline-block; }
+    .btn-login.loading .btn-text { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error / Success Banner ── */
+    .alert {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .alert.error {
+      display: flex;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+    }
+
+    .alert.success {
+      display: flex;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: #86efac;
+    }
+
+    /* ── Footer ── */
+    .card-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .card-footer strong { color: rgba(255,255,255,0.35); }
+
+    /* ── Shake animation on error ── */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%       { transform: translateX(-8px); }
+      40%       { transform: translateX(8px); }
+      60%       { transform: translateX(-6px); }
+      80%       { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.4s ease-in-out; }
+  </style>
+</head>
+<body>
+
+  <!-- Animated background -->
+  <div class="bg-canvas"></div>
+  <div class="bg-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="page">
+    <div class="card" id="login-card">
+
+      <!-- Logo & branding -->
+      <div class="logo-area">
+        <div class="logo-svg-wrap">
+          <svg viewBox="0 0 629.69 240.53" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#de6f00" d="M242.98,186.48l-50.72-.04,43.98-43.53,68.7-67.15c.23-1.33.18-2.74-.4-3.35s-3.04-.33-3.71.26l-7.59,6.53-54.55,55.16-14.27,13.81c-11.03,10.67-26.01,15.19-41.07,11.92-18.77-4.09-34.44-17.65-38.5-36.78l-.56-9.53c-.69-11.89,4.73-23.96,12.85-32.88l11.44-12.56,50.96-51.13,9.92-8.67c3.74-5.48,8.43-6.11,14.33-6.08l51.75.28-48.2,48.31-10.11,10.12-49.77,49.8c-.2,1.46.87,3.93,1.85,4.67s3.83.29,4.81-.51l6.27-5.14,67.12-66.48c18.81-18.63,48.9-21.43,67.79-3.31,8.32,7.97,15.86,17.46,15.62,29.45l-.26,12.81c-1.78,10.1-6.44,19.89-13.82,27.31l-62.77,63.05c-8.57,8.61-18.26,13.72-31.09,13.71Z"/>
+            <path fill="#e28b3b" d="M4.84,166.6l33.33-24.76,14.1-10.64,18.53-13.68,29.11-22.93,4.4-7.45c5.09-8.62,9.32-21.85,7.66-29.9-1.93-9.34-5.14-18.89-12.65-24.96-6.62-5.35-13.78-9.35-22.16-10.89-29.62-5.45-46.3,6.77-55.54,34.79-1.78,5.4-7.5,7.68-11.84,6.14-5.02-1.78-8.6-5.82-7.3-11.95,1.91-9.04,4.7-19.06,10.66-26.44C22.96,11.75,37.62,5.01,52.68,2.21c24.33-4.51,49.2,3.44,64.95,22.59,7.2,8.75,11.46,19.62,13.62,30.69,3.14,16.12-2.83,35.41-14.34,47.21l-9.43,9.67-4.8,4.01-24.64,19.54-29.95,20.81c-5.35,3.72-10.52,6.53-15.98,11.58l92.63.19c3.14,0,5.69.02,7.65,1.82s2.58,3.97,2.72,7.41c.15,3.71-2.59,8.49-7.64,8.48l-117.33-.08c-4.27,0-8.23-4.72-9.16-7.53-1.37-4.14.22-9.32,3.85-12.02Z"/>
+          </svg>
+        </div>
+
+        <div class="logo-badge">
+          <div class="logo-badge-dot"></div>
+          <span class="logo-badge-text">Auto-Publisher</span>
+        </div>
+
+        <div>
+          <h1 class="card-title">Acceso al Panel</h1>
+          <p class="card-subtitle">2S1M Rent Car · Sistema de Gestión</p>
+        </div>
+      </div>
+
+      <!-- Login form -->
+      <form class="form" id="login-form" autocomplete="off" novalidate>
+
+        <div class="field">
+          <label for="input-username">Usuario</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            <input
+              type="text"
+              id="input-username"
+              name="username"
+              placeholder="sysadmin"
+              autocomplete="username"
+              required
+              spellcheck="false"
+              autocapitalize="none"
+            >
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="input-password">Contraseña</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <input
+              type="password"
+              id="input-password"
+              name="password"
+              placeholder="••••••••••••"
+              autocomplete="current-password"
+              required
+            >
+            <button type="button" class="toggle-pw" id="toggle-pw" title="Mostrar/ocultar contraseña">
+              <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Error / success -->
+        <div class="alert" id="login-alert" role="alert"></div>
+
+        <button type="submit" class="btn-login" id="btn-login">
+          <span class="spinner"></span>
+          <span class="btn-text">Entrar al Panel</span>
+        </button>
+
+      </form>
+
+      <!-- Footer -->
+      <div class="card-footer">
+        <strong>2S1M Rent Car</strong> · Panel Privado · Acceso Restringido
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ── Config ──────────────────────────────────────────────────────────
+    const SUPABASE_URL = '__SUPABASE_URL__';
+    const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
+
+    // Username → Supabase email mapping
+    // El login muestra "sysadmin" pero Supabase requiere email
+    function usernameToEmail(username) {
+      return `${username.trim().toLowerCase()}@2s1mrentcar.local`;
+    }
+
+    // ── Init Supabase ────────────────────────────────────────────────────
+    let supabaseClient = null;
+
+    async function initSupabase() {
+      try {
+        // Fetch config from server to get Supabase credentials
+        const res = await fetch('/api/auth-config');
+        if (!res.ok) throw new Error('No se pudo obtener la configuración');
+        const cfg = await res.json();
+        supabaseClient = supabase.createClient(cfg.url, cfg.anonKey);
+      } catch (e) {
+        console.error('Error inicializando Supabase:', e);
+      }
+    }
+
+    // ── Check existing session ───────────────────────────────────────────
+    async function checkExistingSession() {
+      if (!supabaseClient) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+          // Already logged in — go to main app
+          window.location.replace('/');
+        }
+      } catch (e) {
+        console.warn('No session found:', e.message);
+      }
+    }
+
+    // ── UI helpers ───────────────────────────────────────────────────────
+    const form      = document.getElementById('login-form');
+    const btnLogin  = document.getElementById('btn-login');
+    const alertEl   = document.getElementById('login-alert');
+    const card      = document.getElementById('login-card');
+
+    function setLoading(on) {
+      btnLogin.disabled = on;
+      btnLogin.classList.toggle('loading', on);
+    }
+
+    function showError(msg) {
+      alertEl.className = 'alert error';
+      alertEl.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        ${msg}
+      `;
+      // Shake card
+      card.classList.remove('shake');
+      void card.offsetWidth;
+      card.classList.add('shake');
+    }
+
+    function showSuccess(msg) {
+      alertEl.className = 'alert success';
+      alertEl.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        ${msg}
+      `;
+    }
+
+    function hideAlert() {
+      alertEl.className = 'alert';
+      alertEl.innerHTML = '';
+    }
+
+    // ── Password toggle ──────────────────────────────────────────────────
+    document.getElementById('toggle-pw').addEventListener('click', () => {
+      const input = document.getElementById('input-password');
+      const icon  = document.getElementById('eye-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerHTML = `
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        `;
+      } else {
+        input.type = 'password';
+        icon.innerHTML = `
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        `;
+      }
+    });
+
+    // ── Form Submit ──────────────────────────────────────────────────────
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      if (!supabaseClient) {
+        showError('Error de conexión con el servidor. Recarga la página.');
+        return;
+      }
+
+      const username = document.getElementById('input-username').value.trim();
+      const password = document.getElementById('input-password').value;
+
+      if (!username || !password) {
+        showError('Por favor, introduce tu usuario y contraseña.');
+        return;
+      }
+
+      const email = usernameToEmail(username);
+      setLoading(true);
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          if (error.message.includes('Invalid login') || error.message.includes('invalid_credentials')) {
+            showError('Usuario o contraseña incorrectos.');
+          } else if (error.message.includes('Email not confirmed')) {
+            showError('Cuenta no confirmada. Contacta al administrador.');
+          } else {
+            showError(`Error: ${error.message}`);
+          }
+          setLoading(false);
+          return;
+        }
+
+        // Store token for API calls
+        localStorage.setItem('2s1m_access_token', data.session.access_token);
+        localStorage.setItem('2s1m_refresh_token', data.session.refresh_token);
+        localStorage.setItem('2s1m_user', JSON.stringify({
+          id: data.user.id,
+          username: data.user.user_metadata?.username || username,
+          role: data.user.user_metadata?.role || 'user'
+        }));
+
+        showSuccess('¡Acceso correcto! Redirigiendo al panel...');
+
+        setTimeout(() => {
+          window.location.replace('/');
+        }, 800);
+
+      } catch (err) {
+        console.error('Login error:', err);
+        showError('Error inesperado. Inténtalo de nuevo.');
+        setLoading(false);
+      }
+    });
+
+    // ── Bootstrap ────────────────────────────────────────────────────────
+    (async () => {
+      await initSupabase();
+      await checkExistingSession();
+    })();
+  </script>
+</body>
+</html>

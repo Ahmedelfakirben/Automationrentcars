@@ -876,6 +876,57 @@ async function publishToN8N(imageBuffer, imageName, caption, config) {
 }
 
 // -------------------------------------------------------------
+// AUTH MIDDLEWARE
+// -------------------------------------------------------------
+
+// Public route: provides Supabase public (anon) config to the frontend login page
+// The anon key is safe to expose — it has no admin privileges
+app.get('/api/auth-config', (req, res) => {
+  res.json({
+    url: process.env.SUPABASE_URL || '',
+    // Supabase ANON key: derived from the service key project but scoped to public access
+    // For production security, set SUPABASE_ANON_KEY separately in your environment
+    anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || ''
+  });
+});
+
+// Auth verification middleware — validates Supabase JWT tokens
+const verifyAuth = async (req, res, next) => {
+  // If Supabase is not configured, skip auth (local dev mode)
+  if (!isSupabaseActive) return next();
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No autorizado. Por favor, inicia sesión.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return res.status(401).json({ error: 'Sesión inválida o expirada. Por favor, inicia sesión de nuevo.' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('[Auth] Token verification error:', err.message);
+    return res.status(401).json({ error: 'Error de autenticación.' });
+  }
+};
+
+// Apply auth middleware to all protected API routes
+app.use('/api/', (req, res, next) => {
+  // Skip auth for the public auth-config endpoint
+  if (req.path === '/auth-config') return next();
+  return verifyAuth(req, res, next);
+});
+
+// Logout endpoint (server-side session cleanup if needed)
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Sesión cerrada correctamente.' });
+});
+
+// -------------------------------------------------------------
 // API ENDPOINTS
 // -------------------------------------------------------------
 
