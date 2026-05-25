@@ -1004,6 +1004,166 @@ async function publishToFacebookStory(imageBuffer) {
   }
 }
 
+// Helper to publish a single story to both Instagram and Facebook Stories in parallel automatically
+async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, musicSuggestion) {
+  const config = await getConfig();
+  let deliveryError = null;
+  let pubResult = { simulated: true, postId: `sim_story_${Date.now()}`, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+
+  const caption = `[Story] ${storyText}\n🔗 CTA: ${stickerCta || 'Reserva'}\n🎵 Musica: ${musicSuggestion || ''}`;
+
+  // Reconstruct public URL if local
+  let igPublicUrl = imageUrl;
+  if (!igPublicUrl.startsWith('http') && process.env.PORT) {
+    igPublicUrl = `http://localhost:${process.env.PORT}${imageUrl}`;
+  }
+
+  let processedStoryBuffer = null;
+
+  try {
+    console.log(`[Auto Story] Preparing image buffer: ${igPublicUrl}...`);
+    let imgBuffer;
+    if (igPublicUrl.startsWith('http')) {
+      const imgRes = await fetch(igPublicUrl);
+      if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
+      const arrayBuf = await imgRes.arrayBuffer();
+      imgBuffer = Buffer.from(arrayBuf);
+    } else {
+      const localPath = path.join(WORKSPACE_DIR, 'public', imageUrl.replace(/^\/published\//, 'published/'));
+      imgBuffer = await fs.readFile(localPath);
+    }
+
+    console.log("[Auto Story] Resizing and padding to vertical 9:16 aspect ratio...");
+    processedStoryBuffer = await formatImageForStory(imgBuffer);
+    const storyFilename = `story_916_${Date.now()}.jpg`;
+
+    if (isSupabaseActive) {
+      console.log(`[Auto Story - Supabase] Uploading 9:16 story: publicados/${storyFilename}...`);
+      const { error } = await supabase.storage
+        .from('flota')
+        .upload(`publicados/${storyFilename}`, processedStoryBuffer, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+      if (error) throw new Error(`Supabase upload failed: ${error.message}`);
+      const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${storyFilename}`);
+      igPublicUrl = data.publicUrl;
+    } else {
+      const localStoryPath = path.join(PUBLISHED_DIR, storyFilename);
+      await fs.writeFile(localStoryPath, processedStoryBuffer);
+      igPublicUrl = `http://localhost:${process.env.PORT || 3000}/published/${storyFilename}`;
+    }
+    console.log(`[Auto Story] 9:16 Image ready. URL: ${igPublicUrl}`);
+  } catch (err) {
+    console.error("[Auto Story] 9:16 formatting failed, falling back to original image:", err.message);
+  }
+
+  // Fallback buffer for Facebook Story
+  if (!processedStoryBuffer) {
+    try {
+      if (igPublicUrl.startsWith('http')) {
+        const imgRes = await fetch(igPublicUrl);
+        if (imgRes.ok) {
+          const arrayBuf = await imgRes.arrayBuffer();
+          processedStoryBuffer = Buffer.from(arrayBuf);
+        }
+      } else {
+        const localPath = path.join(WORKSPACE_DIR, 'public', imageUrl.replace(/^\/published\//, 'published/'));
+        processedStoryBuffer = await fs.readFile(localPath);
+      }
+    } catch (err) {
+      console.error("[Auto Story] Failed to retrieve fallback image buffer for Facebook Story:", err.message);
+    }
+  }
+
+  try {
+    if (config.publisherChannel === 'n8n') {
+      console.log("[Auto Story] Pushing Story to N8N...");
+      const response = await fetch(config.n8nWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'story',
+          text: storyText,
+          cta: stickerCta,
+          imageUrl: igPublicUrl,
+          imageName: imageName,
+          music: musicSuggestion
+        })
+      });
+      if (response.ok) {
+        pubResult = { simulated: false, postId: `n8n_story_${Date.now()}`, url: config.n8nWebhookUrl };
+      } else {
+        throw new Error(`N8N Webhook responded with: ${response.status}`);
+      }
+    } else {
+      console.log("[Auto Story] Publishing Story to Instagram and Facebook Stories...");
+      
+      let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+      let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
+      let igError = null;
+      let fbError = null;
+
+      // 1. Publish to Instagram Story
+      try {
+        igResult = await publishToInstagram(igPublicUrl, storyText, true);
+      } catch (err) {
+        console.error("[Auto Story] Instagram Story failed:", err.message);
+        igError = err.message;
+      }
+
+      // 2. Publish to Facebook Story
+      if (processedStoryBuffer) {
+        try {
+          fbResult = await publishToFacebookStory(processedStoryBuffer);
+        } catch (err) {
+          console.error("[Auto Story] Facebook Story failed:", err.message);
+          fbError = err.message;
+        }
+      } else {
+        fbError = "Image buffer unavailable";
+      }
+
+      if (igError && fbError) {
+        throw new Error(`Ambas publicaciones de historia fallaron. IG: ${igError}. FB: ${fbError}`);
+      } else if (igError) {
+        deliveryError = `Instagram fallo: ${igError}`;
+      } else if (fbError) {
+        deliveryError = `Facebook Story fallo: ${fbError}`;
+      }
+
+      pubResult = {
+        simulated: igResult.simulated && fbResult.simulated,
+        postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
+        url: igResult.url
+      };
+    }
+  } catch (pe) {
+    console.error("[Auto Story] Delivery failed:", pe.message);
+    deliveryError = pe.message;
+  }
+
+  // Log to history
+  const logEntry = {
+    id: pubResult.postId,
+    timestamp: new Date().toISOString(),
+    carId: 'story_kit_auto',
+    imageName: imageName || 'story_photo.jpg',
+    caption: caption,
+    imageUrl: igPublicUrl,
+    facebookUrl: pubResult.url,
+    simulated: pubResult.simulated,
+    channel: config.publisherChannel,
+    bgReplaced: false,
+    deliveryFailed: !!deliveryError,
+    deliveryError: deliveryError || null,
+    isStory: true
+  };
+
+  config.publishedPosts.unshift(logEntry);
+  await saveConfig(config);
+}
+
 // Publish to Instagram Graph API (Directly Feed / Stories)
 async function publishToInstagram(imageUrl, caption, isStory = false) {
   const pageId = process.env.FACEBOOK_PAGE_ID;
@@ -1948,6 +2108,182 @@ cron.schedule('* * * * *', async () => {
 
   const now = new Date();
   const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  // -------------------------------------------------------------
+  // STORY AUTO-PUBLISHER FOR 11:00 AND 19:00
+  // -------------------------------------------------------------
+  if (currentHourMin === "11:00") {
+    console.log("[Scheduler] 11:00 AM hit. Generating 8 stories and publishing the first 4...");
+    try {
+      // 1. Pick a random car
+      const cars = await scanWorkspaceForCars();
+      const validCars = cars.filter(c => c.images && c.images.length > 0);
+      if (validCars.length > 0) {
+        const randomCar = validCars[Math.floor(Math.random() * validCars.length)];
+        const carName = randomCar.name;
+
+        // 2. Select 8 images (4 AI/generated, 4 catalog library)
+        const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+        let catalogImages = [];
+        if (existsSync(carFolder)) {
+          const files = await fs.readdir(carFolder);
+          catalogImages = files.filter(f => {
+            const ext = path.extname(f).toLowerCase();
+            return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+          });
+        }
+
+        let publishedImages = [];
+        if (existsSync(PUBLISHED_DIR)) {
+          const files = await fs.readdir(PUBLISHED_DIR);
+          publishedImages = files.filter(f => {
+            const ext = path.extname(f).toLowerCase();
+            return (ext === '.jpg' || ext === '.jpeg' || ext === '.png') && 
+                   (f.startsWith('ai_') || f.startsWith('published_') || f.startsWith('auto_'));
+          });
+        }
+
+        const shuffle = arr => arr.sort(() => 0.5 - Math.random());
+        const shuffledPublished = shuffle([...publishedImages]);
+        const shuffledCatalog = shuffle([...catalogImages]);
+
+        const selectedPhotos = [];
+        const publishedCountToTake = Math.min(4, shuffledPublished.length);
+        for (let i = 0; i < publishedCountToTake; i++) {
+          let imageUrl = `/published/${shuffledPublished[i]}`;
+          if (isSupabaseActive) {
+            const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${shuffledPublished[i]}`);
+            if (data && data.publicUrl) {
+              imageUrl = data.publicUrl;
+            }
+          }
+          selectedPhotos.push({ type: 'ai_generated', imageName: shuffledPublished[i], imageUrl });
+        }
+
+        const catalogCountToTake = 8 - selectedPhotos.length;
+        for (let i = 0; i < Math.min(catalogCountToTake, shuffledCatalog.length); i++) {
+          selectedPhotos.push({
+            type: 'library',
+            imageName: shuffledCatalog[i],
+            imageUrl: `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(shuffledCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
+          });
+        }
+
+        while (selectedPhotos.length < 8 && selectedPhotos.length > 0) {
+          selectedPhotos.push(selectedPhotos[selectedPhotos.length % selectedPhotos.length]);
+        }
+
+        if (selectedPhotos.length === 0) {
+          for (let i = 0; i < 8; i++) {
+            selectedPhotos.push({ type: 'library', imageName: 'flota.png', imageUrl: '/flota.png' });
+          }
+        }
+
+        // Generate the 8 stories texts
+        const storiesData = await generateStoriesPackage(carName, config);
+        const stories = storiesData.stories || [];
+
+        const enrichedStories = stories.map((story, index) => {
+          const photo = selectedPhotos[index % selectedPhotos.length];
+          return {
+            ...story,
+            imageUrl: photo.imageUrl,
+            imageName: photo.imageName,
+            imageType: photo.type
+          };
+        });
+
+        // Publish stories 1, 2, 3, 4
+        console.log("[Scheduler] Publishing morning stories 1 to 4...");
+        for (let i = 0; i < Math.min(4, enrichedStories.length); i++) {
+          const st = enrichedStories[i];
+          try {
+            await publishSingleStory(st.text, st.sticker_cta, st.imageUrl, st.imageName, st.music_suggestion);
+            console.log(`[Scheduler] Morning Story #${i+1} published successfully!`);
+          } catch (stErr) {
+            console.error(`[Scheduler] Morning Story #${i+1} failed:`, stErr.message);
+          }
+        }
+
+        // Save stories 5, 6, 7, 8 in config pendingStories
+        config.pendingStories = enrichedStories.slice(4);
+        await saveConfig(config);
+        console.log(`[Scheduler] Morning Stories published. ${config.pendingStories.length} pending stories saved for the afternoon.`);
+      }
+    } catch (storyGenErr) {
+      console.error("[Scheduler] Morning story automatic process failed:", storyGenErr);
+    }
+  }
+
+  if (currentHourMin === "19:00") {
+    console.log("[Scheduler] 07:00 PM hit. Checking for pending stories from morning...");
+    if (config.pendingStories && config.pendingStories.length > 0) {
+      console.log(`[Scheduler] Found ${config.pendingStories.length} pending stories. Publishing...`);
+      const storiesToPublish = [...config.pendingStories];
+      
+      // Clear pendingStories first to be safe
+      config.pendingStories = [];
+      await saveConfig(config);
+
+      for (let i = 0; i < storiesToPublish.length; i++) {
+        const st = storiesToPublish[i];
+        try {
+          await publishSingleStory(st.text, st.sticker_cta, st.imageUrl, st.imageName, st.music_suggestion);
+          console.log(`[Scheduler] Afternoon Story #${i+5} published successfully!`);
+        } catch (stErr) {
+          console.error(`[Scheduler] Afternoon Story #${i+5} failed:`, stErr.message);
+        }
+      }
+      console.log("[Scheduler] Afternoon stories publication finished.");
+    } else {
+      console.log("[Scheduler] No pending stories found. Generating 4 new stories for the afternoon...");
+      try {
+        const cars = await scanWorkspaceForCars();
+        const validCars = cars.filter(c => c.images && c.images.length > 0);
+        if (validCars.length > 0) {
+          const randomCar = validCars[Math.floor(Math.random() * validCars.length)];
+          const carName = randomCar.name;
+
+          // Replicate stories generation but just for 4 stories
+          const storiesData = await generateStoriesPackage(carName, config);
+          const stories = storiesData.stories || [];
+
+          // Scan catalog photos
+          const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+          let catalogImages = [];
+          if (existsSync(carFolder)) {
+            const files = await fs.readdir(carFolder);
+            catalogImages = files.filter(f => {
+              const ext = path.extname(f).toLowerCase();
+              return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+            });
+          }
+
+          const shuffle = arr => arr.sort(() => 0.5 - Math.random());
+          const shuffledCatalog = shuffle([...catalogImages]);
+
+          // Publish up to 4 stories
+          const storiesToPublish = stories.slice(0, 4);
+          for (let i = 0; i < storiesToPublish.length; i++) {
+            const st = storiesToPublish[i];
+            const img = shuffledCatalog[i % shuffledCatalog.length] || 'flota.png';
+            const imageUrl = shuffledCatalog.length > 0 
+              ? `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(img)}&scale=0.15&position=bottom-right&opacity=0.95`
+              : '/flota.png';
+
+            try {
+              await publishSingleStory(st.text, st.sticker_cta, imageUrl, img, st.music_suggestion);
+              console.log(`[Scheduler] Afternoon Story #${i+1} (freshly generated) published successfully!`);
+            } catch (stErr) {
+              console.error(`[Scheduler] Afternoon Story #${i+1} failed:`, stErr.message);
+            }
+          }
+        }
+      } catch (freshErr) {
+        console.error("[Scheduler] Fresh afternoon stories generation failed:", freshErr);
+      }
+    }
+  }
 
   // Check if any active slot matches the current time
   const matchingSlot = config.scheduler.slots.find(slot => slot.enabled && slot.time === currentHourMin);
