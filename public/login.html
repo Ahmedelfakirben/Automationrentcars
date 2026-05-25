@@ -468,6 +468,23 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
+          // Verify that the session is actually valid
+          const { data: { user }, error } = await supabaseClient.auth.getUser();
+          if (error || !user) {
+            console.warn('Session expired or invalid, signing out...');
+            await supabaseClient.auth.signOut();
+            return;
+          }
+
+          // Sync localStorage so checkSession doesn't redirect us back here!
+          localStorage.setItem('2s1m_access_token', session.access_token);
+          localStorage.setItem('2s1m_refresh_token', session.refresh_token);
+          localStorage.setItem('2s1m_user', JSON.stringify({
+            id: session.user.id,
+            username: session.user.user_metadata?.username || 'sysadmin',
+            role: session.user.user_metadata?.role || 'user'
+          }));
+
           // Already logged in — go to main app
           window.location.replace('/');
         }
