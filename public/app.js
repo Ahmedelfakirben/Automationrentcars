@@ -1025,23 +1025,86 @@ class AutoPublisherApp {
       // Unique ID for text area so we can copy it easily
       const textareaId = `story-text-copy-${story.id}`;
 
+      // Music tag
+      const musicSuggestion = story.music_suggestion || 'Música recomendada';
+
+      // Render the card including image preview, music suggest, copy button, and publish story button!
       card.innerHTML = `
+        <div class="story-preview-image-container" style="position: relative; border-radius: 8px; overflow: hidden; margin-bottom: 12px; height: 160px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center;">
+          <img src="${story.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="Story Preview Image">
+          <span style="position: absolute; top: 8px; left: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; background: rgba(222,111,0,0.85); border-radius: 4px; color: #fff; letter-spacing: 0.05em; text-transform: uppercase;">
+            ${story.imageType === 'ai_generated' ? 'Fondo IA ✨' : 'Catálogo 📁'}
+          </span>
+        </div>
         <div class="story-box-header">
           <span class="story-badge">Story #${story.id}</span>
           <button class="btn btn-xs btn-link" onclick="app.copyTextDirectly('${textareaId}')">
-            <i data-lucide="copy" style="width:14px;height:14px"></i> Copiar Story
+            <i data-lucide="copy" style="width:14px;height:14px"></i> Copiar
           </button>
         </div>
-        <p class="story-text-content" id="${textareaId}">${story.text}</p>
-        <div class="story-sticker-tag">
+        <p class="story-text-content" id="${textareaId}" style="min-height: 80px; font-size: 0.9em; line-height: 1.4; color: var(--text-main); margin-bottom: 10px;">${story.text}</p>
+        <div class="story-sticker-tag" style="margin-bottom: 8px;">
           <i data-lucide="link"></i> Enlace Sticker: <strong>${story.sticker_cta}</strong>
         </div>
+        <div class="story-music-tag" style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a855f7; font-weight: 600; margin-bottom: 15px; background: rgba(168,85,247,0.1); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(168,85,247,0.25);">
+          <i data-lucide="music" style="width:13px;height:13px;"></i> <span>${musicSuggestion}</span>
+        </div>
+        <button class="btn btn-primary btn-sm btn-block btn-publish-story-action" id="btn-pub-story-${story.id}" onclick="app.publishStory(${story.id})" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;">
+          <i data-lucide="instagram" style="width: 14px; height: 14px; margin-right: 4px;"></i> Publicar Story
+        </button>
       `;
 
       container.appendChild(card);
     });
 
     lucide.createIcons();
+  }
+
+  // Publish manual Story directly to Instagram
+  async publishStory(storyId) {
+    const story = this.storiesPackage.find(s => s.id === storyId);
+    if (!story) {
+      this.showToast("Error", "No se encontró la Story en el paquete.", "error");
+      return;
+    }
+
+    const btn = document.getElementById(`btn-pub-story-${storyId}`);
+    if (!btn) return;
+
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<div class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color:#fff"></div> Enviando...`;
+
+    try {
+      const response = await authFetch('/api/publish-story', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyText: story.text,
+          stickerCta: story.sticker_cta,
+          imageUrl: story.imageUrl,
+          imageName: story.imageName,
+          musicSuggestion: story.music_suggestion
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || data.warning || "Fallo en el servidor al publicar");
+
+      this.showToast("¡Historia Publicada!", data.post.simulated 
+        ? "Simulación de Story guardada en tu historial con éxito."
+        : "Story enviada a Instagram Stories con éxito.", "success");
+      
+      // Update history
+      await this.fetchConfig();
+    } catch (err) {
+      console.error(err);
+      this.showToast("Fallo al Publicar Storie", err.message || "Asegúrate de que tus credenciales de Instagram estén activas.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+      lucide.createIcons();
+    }
   }
 
   // Save configurations in Settings Tab

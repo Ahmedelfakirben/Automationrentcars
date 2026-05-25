@@ -39,7 +39,7 @@
       "Turismo de Fin de Semana en Tánger y Tetuán"
     ]
   },
-  "publisherChannel": "n8n",
+  "publisherChannel": "direct",
   "n8nWebhookUrl": "https://n8n.elaribi.ma/webhook-test/publicador-2s1m",
   "bgReplacementEnabled": true,
   "publishedPosts": [

@@ -506,11 +506,121 @@ async function getWatermarkedImageBuffer(carId, imageName, settings) {
   return await applyWatermarkToBuffer(rawImageBuffer, settings);
 }
 
-// Photoroom API Background Replacement Integration
+// Format image into premium vertical 9:16 portrait layout for Instagram Stories
+async function formatImageForStory(imageBuffer) {
+  const image = sharp(imageBuffer);
+  const metadata = await image.metadata();
+  const targetWidth = 1080;
+  const targetHeight = 1920;
+
+  // Resize original image to fit width of 1080
+  const resized = await sharp(imageBuffer)
+    .resize({
+      width: targetWidth,
+      height: Math.round(targetWidth / (metadata.width / metadata.height)),
+      fit: 'contain'
+    })
+    .toBuffer();
+
+  const resizedMetadata = await sharp(resized).metadata();
+
+  // Pad to vertical 9:16 canvas with elegant dark mode background (#121212)
+  return await sharp(resized)
+    .extend({
+      top: Math.max(0, Math.floor((targetHeight - resizedMetadata.height) / 2)),
+      bottom: Math.max(0, Math.ceil((targetHeight - resizedMetadata.height) / 2)),
+      left: 0,
+      right: 0,
+      background: { r: 18, g: 18, b: 18, alpha: 1 }
+    })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+// Background Replacement Integration (Cloudinary with Photoroom fallback)
 async function replaceBackground(imageBuffer, imageName, prompt) {
+  const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY;
+  const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  // 1. CLOUDINARY ACTIVE (Free Generative AI background replacement)
+  if (cloudinaryCloudName && cloudinaryCloudName.trim() !== "" && cloudinaryApiKey && cloudinaryApiSecret) {
+    console.log(`[Cloudinary] Starting generative background replacement for: "${prompt}"...`);
+    try {
+      const timestamp = Math.round(new Date().getTime() / 1000);
+      const signatureString = `timestamp=${timestamp}${cloudinaryApiSecret}`;
+      
+      const crypto = await import('crypto');
+      const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
+
+      // Convert image buffer to base64 Data URI for upload
+      const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+
+      console.log(`[Cloudinary] Uploading temporary original image to cloud...`);
+      const formData = new URLSearchParams();
+      formData.append('file', base64Image);
+      formData.append('api_key', cloudinaryApiKey);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
+
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const uploadData = await uploadRes.json();
+
+      if (!uploadRes.ok || uploadData.error) {
+        throw new Error(uploadData.error ? uploadData.error.message : "Fallo al subir imagen original a Cloudinary");
+      }
+
+      const publicId = uploadData.public_id;
+      const version = uploadData.version;
+      const format = uploadData.format;
+
+      // Generate the URL with generative background replacement transformation
+      // e_gen_background_replace:prompt_your_prompt
+      const cleanPrompt = prompt.replace(/,/g, ' ').replace(/\//g, ' ').replace(/\s+/g, ' ').trim();
+      const encodedPrompt = encodeURIComponent(cleanPrompt);
+      const transformedUrl = `https://res.cloudinary.com/${cloudinaryCloudName}/image/upload/e_gen_background_replace:prompt_${encodedPrompt}/v${version}/${publicId}.${format}`;
+      
+      console.log(`[Cloudinary] Transformed AI URL: ${transformedUrl}`);
+      console.log(`[Cloudinary] Fetching background replaced image...`);
+
+      let response;
+      const maxRetries = 60; // 3 minutes total
+      const retryIntervalMs = 3000;
+      for (let i = 0; i < maxRetries; i++) {
+        console.log(`[Cloudinary] Fetching transformed image (attempt ${i + 1}/${maxRetries})...`);
+        response = await fetch(transformedUrl);
+        if (response.ok) {
+          break;
+        }
+        if (response.status === 423) {
+          console.log(`[Cloudinary] Image is processing (423 Locked). Retrying in ${retryIntervalMs / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
+        } else {
+          const text = await response.text().catch(() => '');
+          console.error(`[Cloudinary] HTTP Error ${response.status}: ${response.statusText}. Details: ${text}`);
+          throw new Error(`Fallo al descargar la imagen transformada de Cloudinary: ${response.status} ${response.statusText}`);
+        }
+      }
+      if (!response || !response.ok) {
+        throw new Error(`Cloudinary download failed after retries: ${response ? response.statusText : 'No response'}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      console.log(`[Cloudinary] Success! Generative background generated. size: ${arrayBuffer.byteLength} bytes.`);
+      await trackUsage('photoroom', null, 'success'); // count towards usage stats
+      return Buffer.from(arrayBuffer);
+    } catch (err) {
+      console.error("[Cloudinary] Generative background failed, falling back to Photoroom if key active...", err.message);
+    }
+  }
+
+  // 2. PHOTOROOM FALLBACK
   const apiKey = process.env.PHOTOROOM_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
-    throw new Error("PHOTOROOM_API_KEY is not defined in .env. Please configure it in the Settings panel.");
+    throw new Error("Generative background API error: No active Cloudinary or Photoroom credentials configured in .env.");
   }
 
   console.log(`[Photoroom] Calling background replacement with prompt: "${prompt}"...`);
@@ -560,7 +670,7 @@ async function replaceBackground(imageBuffer, imageName, prompt) {
   }
 }
 
-// Generate Copy using Groq (Upgraded to return background_prompt!)
+// Generate Copy using Groq (Upgraded to return background_prompt, support 4 languages and dynamic hashtags!)
 async function generatePostCopy(themeId, carName, config) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -569,6 +679,10 @@ async function generatePostCopy(themeId, carName, config) {
 
   const promotionsText = config.calendar.promotions.join(', ') || 'Sin promociones activas';
   const eventsText = config.calendar.events.join(', ') || 'Sin eventos festivos especiales';
+
+  // Get current day of the week for custom dynamic hashtags
+  const daysOfWeek = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const currentDayName = daysOfWeek[new Date().getDay()];
 
   let systemPrompt = `Eres el Community Manager experto de "2S1M Rent Car", una empresa premium de alquiler de vehículos en Tetuán y Tánger, Marruecos.
 Tu objetivo es crear contenido altamente atractivo para redes sociales que genere reservas.
@@ -580,16 +694,22 @@ CONTEXTO DEL NEGOCIO:
 - Tono: Profesional, confiable, directo, lujoso y dinámico.
 
 REGLAS DE CONTENIDO:
-1. IDIOMA: Todo el contenido debe ser estrictamente bilingüe (Francés primero, Español después).
+1. IDIOMA: Todo el contenido debe ser estrictamente redactado en 4 idiomas en este orden exacto:
+   - Francés (Français) primero
+   - Árabe (العربية) segundo
+   - Español (Español) tercero
+   - Inglés (English) cuarto
+   Cada idioma debe estar separado claramente por un salto de línea para facilitar la lectura.
 2. CALL TO ACTION (CTA): Siempre debes invitar a reservar vía WhatsApp o visitando rentcartetouan.ma.
 3. EMOJIS: Usa emojis adecuados pero sin saturar (máximo 4-5 por texto total). Emojis seguros: ⭐, 🚗, 📍, 📞, ✅, 🌐.
-4. FORMATO DE SALIDA: Debes responder ÚNICAMENTE con un objeto JSON válido. No incluyas explicaciones ni etiquetas markdown de código en la respuesta. Solo devuelve el JSON crudo.
+4. HASHTAGS: Incluye hashtags dinámicos apropiados para hoy, que es **${currentDayName}** (ej: si es Jueves, incluye hashtags como #TangierThursday o #JuevesDeRuta; si es Sábado o Domingo, #FindeSemana, #EscapadaFinde, etc., adaptado al día de la semana).
+5. FORMATO DE SALIDA: Debes responder ÚNICAMENTE con un objeto JSON válido. No incluyas explicaciones ni etiquetas markdown de código en la respuesta. Solo devuelve el JSON crudo.
 
 ESTRUCTURA DEL JSON REQUERIDA:
 {
-  "post_text": "Texto largo bilingüe para el feed de Facebook/Instagram. Incluye el CTA al final con número de contacto y web.",
-  "hashtags": "Lista de 8 a 10 hashtags estratégicos separados por espacio",
-  "story_text": "Texto muy corto e impactante (máx 10 palabras por idioma) para superponer en un video o imagen vertical.",
+  "post_text": "Texto largo bilingüe en 4 idiomas (FR, AR, ES, EN) para el feed. Incluye el CTA al final con número de contacto y web en cada sección correspondiente o al final general.",
+  "hashtags": "Lista de 8 a 10 hashtags estratégicos adaptados al día de la semana (${currentDayName}) separados por espacio",
+  "story_text": "Texto muy corto e impactante (máx 10 palabras por idioma: FR, AR, ES, EN) para superponer en la historia.",
   "story_sticker_cta": "Texto ultracorto (máx 4 palabras) para el botón del enlace de la historia.",
   "background_prompt": "Un prompt fotográfico detallado en INGLÉS para generar el fondo de recambio del coche en Photoroom. Debe situar el coche en un entorno espectacular de Marruecos (ej: 'Parked at Marina Bay Tangier during sunset, cinematic warm lighting, high-end professional automotive photography, 8k'). Evita mencionar logos y personas."
 }
@@ -640,7 +760,7 @@ Instrucciones específicas:
       },
       {
         role: "user",
-        content: `Genera el post perfecto en JSON para promocionar el coche: ${carName}. Recuerda respetar estrictamente los idiomas (Francés arriba, Español abajo) y la firma de contacto inamovible:
+        content: `Genera el post perfecto en JSON para promocionar el coche: ${carName}. Recuerda respetar estrictamente los 4 idiomas en orden (FR, AR, ES, EN) y la firma de contacto inamovible:
 📍 RUE 14 AV MOHAMED BENOUNA, QUARTIER BOUJARAH, TÉTOUAN
 📞 06 60 29 28 21 / 05 31 33 32 93
 ✅ WhatsApp: +212 6 60 29 28 21
@@ -683,30 +803,32 @@ Instrucciones específicas:
   }
 }
 
-// Generate Stories Package (5 stories)
+// Generate Stories Package (8 stories, 4 languages, music suggestion)
 async function generateStoriesPackage(carName, config) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new Error("GROQ_API_KEY is not defined in the environment.");
   }
 
-  const systemPrompt = `Eres el Director de Marketing Creativo de "2S1M Rent Car". Tu objetivo es crear un paquete de 5 stories cortas e impactantes de alta conversión para Instagram/Facebook.
+  const systemPrompt = `Eres el Director de Marketing Creativo de "2S1M Rent Car". Tu objetivo es crear un paquete de 8 stories cortas e impactantes de alta conversión para Instagram/Facebook.
 Cada story debe motivar a reservar de inmediato a través de WhatsApp o la web.
 
 NORMAS DE LAS STORIES:
-- Idiomas: Bilingües (Francés primero, Español después).
-- Cortas: Máximo 8-10 palabras en total por idioma, pensadas para leerse en 3 segundos en una pantalla de móvil.
+- Idiomas: Cada una debe redactarse en 4 idiomas en este orden exacto: Francés (Français) primero, Árabe (العربية) segundo, Español (Español) tercero, e Inglés (English) cuarto.
+- Muy Cortas: Máximo 8-10 palabras en total por idioma, pensadas para leerse rápidamente en una pantalla de móvil.
 - Atractivas, enérgicas y Premium.
 - Emojis: 1 o 2 emojis por story.
-- Formato de Salida: Devuelve ÚNICAMENTE un objeto JSON válido con un array de 5 objetos de stories. No añadas introducciones, ni comentarios, ni bloques de código.
+- Música Recomendada: Para cada story, sugiere una canción comercial tendencia y popular (de artistas populares, música veraniega, chill, latina, house o árabe moderna) adecuada para acompañar la historia en Instagram/Facebook.
+- Formato de Salida: Devuelve ÚNICAMENTE un objeto JSON válido con un array de 8 objetos de stories. No añadas introducciones, ni comentarios, ni bloques de código.
 
 ESTRUCTURA DEL JSON REQUERIDA:
 {
   "stories": [
     {
       "id": 1,
-      "text": "[Texto Francés] \\n [Texto Español]",
-      "sticker_cta": "Reserva / WhatsApp (máx 3 palabras)"
+      "text": "[Texto Francés] \\n [Texto Árabe] \\n [Texto Español] \\n [Texto Inglés]",
+      "sticker_cta": "Reserva / WhatsApp (máx 3 palabras)",
+      "music_suggestion": "Nombre de la Canción - Artista (ej: 'Feel It Still - Portugal. The Man')"
     },
     ...
   ]
@@ -811,6 +933,158 @@ async function publishToFacebook(imageBuffer, caption) {
   } catch (err) {
     await trackUsage('facebook', null, 'failed');
     console.error("Facebook Publishing Error:", err);
+    throw err;
+  }
+}
+
+// Publish to Facebook Story Graph API
+async function publishToFacebookStory(imageBuffer) {
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  const accessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+  if (!pageId || !accessToken || accessToken.trim() === "") {
+    console.warn("Facebook Story credentials missing. Operating in SIMULATION Mode.");
+    return {
+      simulated: true,
+      postId: "sim_fb_story_" + Math.random().toString(36).substr(2, 9),
+      url: "https://www.facebook.com/2s1mrentcar/stories/simulation"
+    };
+  }
+
+  const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substr(2, 16);
+  const parts = [
+    `--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${accessToken}\r\n`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="published"\r\n\r\nfalse\r\n`,
+    `--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="story_image.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`
+  ];
+  const headerBuffer = Buffer.from(parts.join(''));
+  const footerBuffer = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const payload = Buffer.concat([headerBuffer, imageBuffer, footerBuffer]);
+
+  try {
+    console.log(`[Facebook Story] Uploading unpublished photo to page ${pageId}...`);
+    const uploadRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+      body: payload
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || !uploadData.id) {
+      await trackUsage('facebook', null, 'failed');
+      throw new Error(uploadData.error ? uploadData.error.message : "Facebook photo upload for story failed");
+    }
+    const photoId = uploadData.id;
+    console.log(`[Facebook Story] Photo uploaded successfully. Photo ID: ${photoId}. Publishing photo story...`);
+
+    const publishParams = new URLSearchParams();
+    publishParams.append('access_token', accessToken);
+    publishParams.append('photo_id', photoId);
+
+    const publishRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photo_stories`, {
+      method: "POST",
+      body: publishParams
+    });
+    const publishData = await publishRes.json();
+    if (!publishRes.ok || (!publishData.id && !publishData.post_id)) {
+      await trackUsage('facebook', null, 'failed');
+      throw new Error(publishData.error ? publishData.error.message : "Facebook story creation failed");
+    }
+    const storyId = publishData.id || publishData.post_id;
+    console.log(`[Facebook Story] Page Story published successfully! Story ID: ${storyId}`);
+    await trackUsage('facebook', null, 'success');
+    return {
+      simulated: false,
+      postId: storyId,
+      url: `https://www.facebook.com/${pageId}/stories`
+    };
+  } catch (err) {
+    await trackUsage('facebook', null, 'failed');
+    console.error("Facebook Story Publishing Error:", err);
+    throw err;
+  }
+}
+
+// Publish to Instagram Graph API (Directly Feed / Stories)
+async function publishToInstagram(imageUrl, caption, isStory = false) {
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  const accessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+
+  if (!pageId || !accessToken || accessToken.trim() === "") {
+    console.warn("Instagram credentials missing. Operating in SIMULATION Mode.");
+    return {
+      simulated: true,
+      postId: "sim_ig_" + Math.random().toString(36).substr(2, 9),
+      url: "https://www.instagram.com/2s1mrentcar/simulation"
+    };
+  }
+
+  try {
+    // 1. Get the linked Instagram Business Account ID
+    console.log(`[Instagram] Finding linked Instagram account for page ${pageId}...`);
+    const accountRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`);
+    const accountData = await accountRes.json();
+
+    if (!accountRes.ok || !accountData.instagram_business_account) {
+      throw new Error(accountData.error ? accountData.error.message : "No se encontro una cuenta de Instagram Business vinculada a esta pagina de Facebook.");
+    }
+    const igAccountId = accountData.instagram_business_account.id;
+    console.log(`[Instagram] Linked Account ID found: ${igAccountId}`);
+
+    // 2. Create the media container (Requires fully public URL - Supabase Storage bucket public URL is used)
+    console.log(`[Instagram] Creating media container for ${isStory ? 'Story' : 'Feed Post'} (URL: ${imageUrl})...`);
+    const containerParams = new URLSearchParams();
+    containerParams.append('access_token', accessToken);
+    containerParams.append('image_url', imageUrl);
+    if (isStory) {
+      containerParams.append('media_type', 'STORIES');
+    } else {
+      containerParams.append('caption', caption);
+    }
+
+    const containerRes = await fetch(`https://graph.facebook.com/v19.0/${igAccountId}/media`, {
+      method: 'POST',
+      body: containerParams
+    });
+    const containerData = await containerRes.json();
+
+    if (!containerRes.ok || !containerData.id) {
+      throw new Error(containerData.error ? containerData.error.message : "Fallo al crear contenedor de media en Instagram");
+    }
+    const containerId = containerData.id;
+    console.log(`[Instagram] Media container created successfully. ID: ${containerId}`);
+
+    // 3. Publish the media container
+    if (isStory) {
+      console.log(`[Instagram] Stories container created (ID: ${containerId}). Waiting 5 seconds for Meta background processing...`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    } else {
+      console.log(`[Instagram] Feed container created (ID: ${containerId}). Waiting 3 seconds...`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    console.log(`[Instagram] Publishing media container ${containerId}...`);
+    const publishParams = new URLSearchParams();
+    publishParams.append('access_token', accessToken);
+    publishParams.append('creation_id', containerId);
+
+    const publishRes = await fetch(`https://graph.facebook.com/v19.0/${igAccountId}/media_publish`, {
+      method: 'POST',
+      body: publishParams
+    });
+    const publishData = await publishRes.json();
+
+    if (!publishRes.ok || !publishData.id) {
+      throw new Error(publishData.error ? publishData.error.message : "Fallo al publicar el contenedor en Instagram");
+    }
+
+    console.log(`[Instagram] Published successfully! Post ID: ${publishData.id}`);
+    return {
+      simulated: false,
+      postId: publishData.id,
+      url: `https://www.instagram.com/p/${publishData.id}`
+    };
+  } catch (err) {
+    console.error("Instagram Publishing Error:", err);
     throw err;
   }
 }
@@ -988,7 +1262,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// Generate 5 Stories Package
+// Generate 8 Stories Package (Combines 4 AI/generated and 4 catalog images + music suggestions)
 app.post('/api/generate-stories', async (req, res) => {
   const { carId } = req.body;
   if (!carId) {
@@ -996,11 +1270,97 @@ app.post('/api/generate-stories', async (req, res) => {
   }
 
   try {
+    const config = await getConfig();
     const carDef = CAR_CATALOG_SCHEMES.find(c => c.id === carId);
     const carName = carDef ? carDef.name : "Nuestra Flota Premium";
 
-    const storiesData = await generateStoriesPackage(carName);
-    res.json(storiesData);
+    // 1. Scan catalog photos for this car
+    const carFolder = path.join(WORKSPACE_DIR, carDef.folder);
+    let catalogImages = [];
+    if (existsSync(carFolder)) {
+      const files = await fs.readdir(carFolder);
+      catalogImages = files.filter(f => {
+        const ext = path.extname(f).toLowerCase();
+        return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+      });
+    }
+
+    // 2. Scan published (AI generated) photos in local cache
+    let publishedImages = [];
+    if (existsSync(PUBLISHED_DIR)) {
+      const files = await fs.readdir(PUBLISHED_DIR);
+      publishedImages = files.filter(f => {
+        const ext = path.extname(f).toLowerCase();
+        return (ext === '.jpg' || ext === '.jpeg' || ext === '.png') && 
+               (f.startsWith('ai_') || f.startsWith('published_') || f.startsWith('auto_'));
+      });
+    }
+
+    // 3. Select 8 images (4 generated, 4 catalog)
+    const shuffle = arr => arr.sort(() => 0.5 - Math.random());
+    const shuffledPublished = shuffle([...publishedImages]);
+    const shuffledCatalog = shuffle([...catalogImages]);
+
+    const selectedPhotos = [];
+    const publishedCountToTake = Math.min(4, shuffledPublished.length);
+    for (let i = 0; i < publishedCountToTake; i++) {
+      // Get the correct public URL (If Supabase active, get it or fall back)
+      let imageUrl = `/published/${shuffledPublished[i]}`;
+      if (isSupabaseActive) {
+        const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${shuffledPublished[i]}`);
+        if (data && data.publicUrl) {
+          imageUrl = data.publicUrl;
+        }
+      }
+      selectedPhotos.push({
+        type: 'ai_generated',
+        imageName: shuffledPublished[i],
+        imageUrl: imageUrl
+      });
+    }
+
+    const catalogCountToTake = 8 - selectedPhotos.length;
+    for (let i = 0; i < Math.min(catalogCountToTake, shuffledCatalog.length); i++) {
+      // The library image preview endpoint is safe and watermarked
+      selectedPhotos.push({
+        type: 'library',
+        imageName: shuffledCatalog[i],
+        imageUrl: `/api/preview?carId=${carId}&imageName=${encodeURIComponent(shuffledCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
+      });
+    }
+
+    // Pad if still less than 8
+    while (selectedPhotos.length < 8 && selectedPhotos.length > 0) {
+      selectedPhotos.push(selectedPhotos[selectedPhotos.length % selectedPhotos.length]);
+    }
+
+    // Fallback if no images found at all
+    if (selectedPhotos.length === 0) {
+      for (let i = 0; i < 8; i++) {
+        selectedPhotos.push({
+          type: 'library',
+          imageName: 'flota.png',
+          imageUrl: '/flota.png'
+        });
+      }
+    }
+
+    // 4. Generate the 8 stories texts
+    const storiesData = await generateStoriesPackage(carName, config);
+    const stories = storiesData.stories || [];
+
+    // 5. Associate one selected photo to each story
+    const enrichedStories = stories.map((story, index) => {
+      const photo = selectedPhotos[index % selectedPhotos.length];
+      return {
+        ...story,
+        imageUrl: photo.imageUrl,
+        imageName: photo.imageName,
+        imageType: photo.type
+      };
+    });
+
+    res.json({ stories: enrichedStories });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1172,7 +1532,7 @@ app.post('/api/preview-ai', async (req, res) => {
 });
 
 
-// Publish manual post (Sends to Facebook OR N8N depending on config, supports Photoroom AI Background Replacement!)
+// Publish manual post (Sends to Facebook and Instagram directly, supports Photoroom AI Background Replacement!)
 app.post('/api/publish', async (req, res) => {
   const { carId, imageName, postText, hashtags, backgroundPrompt, watermarkSettings, alreadyGeneratedImageUrl, alreadyGeneratedImageName } = req.body;
 
@@ -1240,12 +1600,14 @@ app.post('/api/publish', async (req, res) => {
         activeImageBuffer = await fs.readFile(originalImagePath);
       }
 
-      // 2. Apply Photoroom Background Replacement if active
-      if (config.bgReplacementEnabled && backgroundPrompt && backgroundPrompt.trim() !== "" && process.env.PHOTOROOM_API_KEY) {
+      // 2. Apply Background Replacement if active (supports Cloudinary and Photoroom)
+      const hasCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+      const hasPhotoroom = !!process.env.PHOTOROOM_API_KEY;
+      if (config.bgReplacementEnabled && backgroundPrompt && backgroundPrompt.trim() !== "" && (hasCloudinary || hasPhotoroom)) {
         try {
           activeImageBuffer = await replaceBackground(activeImageBuffer, imageName, backgroundPrompt);
         } catch (pe) {
-          console.error("[Publish] Photoroom background replacement failed. Falling back to original car photo.", pe);
+          console.error("[Publish] Background replacement failed. Falling back to original car photo.", pe);
         }
       }
 
@@ -1292,11 +1654,24 @@ app.post('/api/publish', async (req, res) => {
       } else {
         console.log("[Publish] Directing post to Facebook...");
         pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
+
+        // NATIVE DIRECT CO-PUBLISH TO INSTAGRAM FEED
+        try {
+          console.log("[Publish] Directing post to Instagram Feed...");
+          let igPublicUrl = publicImageUrl;
+          if (!igPublicUrl.startsWith('http') && req.headers.host) {
+            const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
+            igPublicUrl = `${protocol}//${req.headers.host}${publicImageUrl}`;
+          }
+          await publishToInstagram(igPublicUrl, caption, false);
+        } catch (ige) {
+          console.error("[Publish] Instagram feed publishing failed:", ige.message);
+          deliveryError = `Facebook OK. Instagram Fallo: ${ige.message}`;
+        }
       }
     } catch (pe) {
       console.error("[Publish] Webhook/Facebook delivery failed:", pe.message);
       deliveryError = pe.message;
-      // Fallback pubResult in case of delivery failure so history entry remains
       pubResult = {
         simulated: true,
         postId: `fail_${Date.now()}`,
@@ -1326,7 +1701,191 @@ app.post('/api/publish', async (req, res) => {
     res.json({ 
       success: true, 
       post: logEntry,
-      warning: deliveryError ? `La foto se ha generado y guardado correctamente en Supabase, pero el envío a N8N falló: ${deliveryError}` : null
+      warning: deliveryError ? `Fallo en el envio: ${deliveryError}` : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Publish manual Story to Instagram and Facebook!
+app.post('/api/publish-story', async (req, res) => {
+  const { storyText, stickerCta, imageUrl, imageName, musicSuggestion } = req.body;
+
+  if (!imageUrl) {
+    return res.status(400).json({ error: "imageUrl is required" });
+  }
+
+  try {
+    const config = await getConfig();
+    let deliveryError = null;
+    let pubResult = { simulated: true, postId: `sim_story_${Date.now()}`, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+
+    // Format full caption for logs or if N8N/FB is used
+    const caption = `[Story] ${storyText}\n🔗 CTA: ${stickerCta || 'Reserva'}\n🎵 Musica: ${musicSuggestion || ''}`;
+
+    // Reconstruct public URL if local
+    let igPublicUrl = imageUrl;
+    if (!igPublicUrl.startsWith('http') && req.headers.host) {
+      const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
+      igPublicUrl = `${protocol}//${req.headers.host}${imageUrl}`;
+    }
+
+    let processedStoryBuffer = null;
+
+    // Auto-Format to 9:16 Portrait Layout using Sharp for Instagram Story Direct Publish
+    try {
+      console.log(`[Publish Story] Downloading image for 9:16 processing: ${igPublicUrl}...`);
+      let imgBuffer;
+      if (igPublicUrl.startsWith('http')) {
+        const imgRes = await fetch(igPublicUrl);
+        if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
+        const arrayBuf = await imgRes.arrayBuffer();
+        imgBuffer = Buffer.from(arrayBuf);
+      } else {
+        const localPath = path.join(WORKSPACE_DIR, 'public', imageUrl.replace(/^\/published\//, 'published/'));
+        imgBuffer = await fs.readFile(localPath);
+      }
+
+      console.log("[Publish Story] Resizing and padding to vertical 9:16 aspect ratio...");
+      processedStoryBuffer = await formatImageForStory(imgBuffer);
+      const storyFilename = `story_916_${Date.now()}.jpg`;
+
+      if (isSupabaseActive) {
+        console.log(`[Publish Story - Supabase] Uploading 9:16 story: publicados/${storyFilename}...`);
+        const { error } = await supabase.storage
+          .from('flota')
+          .upload(`publicados/${storyFilename}`, processedStoryBuffer, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
+        if (error) throw new Error(`Supabase upload failed: ${error.message}`);
+        const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${storyFilename}`);
+        igPublicUrl = data.publicUrl;
+      } else {
+        const localStoryPath = path.join(PUBLISHED_DIR, storyFilename);
+        await fs.writeFile(localStoryPath, processedStoryBuffer);
+        if (req.headers.host) {
+          const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
+          igPublicUrl = `${protocol}//${req.headers.host}/published/${storyFilename}`;
+        } else {
+          igPublicUrl = `/published/${storyFilename}`;
+        }
+      }
+      console.log(`[Publish Story] 9:16 Image ready. URL: ${igPublicUrl}`);
+    } catch (err) {
+      console.error("[Publish Story] 9:16 formatting failed, falling back to original image:", err.message);
+    }
+
+    // Retrieve original buffer if formatting or upload failed to guarantee Facebook Story has a buffer
+    if (!processedStoryBuffer) {
+      try {
+        if (igPublicUrl.startsWith('http')) {
+          const imgRes = await fetch(igPublicUrl);
+          if (imgRes.ok) {
+            const arrayBuf = await imgRes.arrayBuffer();
+            processedStoryBuffer = Buffer.from(arrayBuf);
+          }
+        } else {
+          const localPath = path.join(WORKSPACE_DIR, 'public', imageUrl.replace(/^\/published\//, 'published/'));
+          processedStoryBuffer = await fs.readFile(localPath);
+        }
+      } catch (err) {
+        console.error("[Publish Story] Failed to retrieve fallback image buffer for Facebook Story:", err.message);
+      }
+    }
+
+    try {
+      if (config.publisherChannel === 'n8n') {
+        console.log("[Publish Story] Directing Story to N8N Webhook...");
+        const response = await fetch(config.n8nWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'story',
+            text: storyText,
+            cta: stickerCta,
+            imageUrl: igPublicUrl,
+            imageName: imageName,
+            music: musicSuggestion
+          })
+        });
+        if (response.ok) {
+          pubResult = { simulated: false, postId: `n8n_story_${Date.now()}`, url: config.n8nWebhookUrl };
+        } else {
+          throw new Error(`N8N Webhook respondio con status: ${response.status}`);
+        }
+      } else {
+        console.log("[Publish Story] Publishing Story directly to Instagram and Facebook Stories...");
+        
+        let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+        let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
+        let igError = null;
+        let fbError = null;
+
+        // 1. Publish to Instagram Story
+        try {
+          igResult = await publishToInstagram(igPublicUrl, storyText, true);
+        } catch (err) {
+          console.error("[Publish Story] Instagram Story publishing failed:", err.message);
+          igError = err.message;
+        }
+
+        // 2. Publish to Facebook Story
+        if (processedStoryBuffer) {
+          try {
+            fbResult = await publishToFacebookStory(processedStoryBuffer);
+          } catch (err) {
+            console.error("[Publish Story] Facebook Story publishing failed:", err.message);
+            fbError = err.message;
+          }
+        } else {
+          fbError = "Image buffer unavailable";
+        }
+
+        if (igError && fbError) {
+          throw new Error(`Ambas publicaciones fallaron. IG: ${igError}. FB: ${fbError}`);
+        } else if (igError) {
+          deliveryError = `Instagram fallo: ${igError}`;
+        } else if (fbError) {
+          deliveryError = `Facebook Story fallo: ${fbError}`;
+        }
+
+        pubResult = {
+          simulated: igResult.simulated && fbResult.simulated,
+          postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
+          url: igResult.url // Return Instagram URL as primary
+        };
+      }
+    } catch (pe) {
+      console.error("[Publish Story] Story delivery failed:", pe.message);
+      deliveryError = pe.message;
+    }
+
+    // Log to history
+    const logEntry = {
+      id: pubResult.postId,
+      timestamp: new Date().toISOString(),
+      carId: 'story_kit',
+      imageName: imageName || 'story_photo.jpg',
+      caption: caption,
+      imageUrl: igPublicUrl,
+      facebookUrl: pubResult.url,
+      simulated: pubResult.simulated,
+      channel: config.publisherChannel,
+      bgReplaced: false,
+      deliveryFailed: !!deliveryError,
+      deliveryError: deliveryError || null,
+      isStory: true
+    };
+
+    config.publishedPosts.unshift(logEntry);
+    await saveConfig(config);
+
+    res.json({
+      success: true,
+      post: logEntry,
+      warning: deliveryError ? `Fallo en el envio de Story: ${deliveryError}` : null
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1404,14 +1963,44 @@ cron.schedule('* * * * *', async () => {
         return;
       }
 
-      const randomCar = validCars[Math.floor(Math.random() * validCars.length)];
-      const randomImageName = randomCar.images[Math.floor(Math.random() * randomCar.images.length)];
+      // Pick a random car and image, ensuring we don't repeat recently posted images (last 4 posts)
+      const lastPublished = config.publishedPosts || [];
+      const recentlyUsed = lastPublished.slice(0, 4).map(p => `${p.carId}/${p.imageName}`);
 
-      console.log(`[Scheduler] Selected car: ${randomCar.name}, Image: ${randomImageName}`);
+      let availableOptions = [];
+      for (const car of validCars) {
+        for (const img of car.images) {
+          const identifier = `${car.id}/${img}`;
+          if (!recentlyUsed.includes(identifier)) {
+            availableOptions.push({ car, img });
+          }
+        }
+      }
+
+      if (availableOptions.length === 0) {
+        // Fallback to all options if everything was recently used
+        validCars.forEach(car => {
+          car.images.forEach(img => {
+            availableOptions.push({ car, img });
+          });
+        });
+      }
+
+      const selected = availableOptions[Math.floor(Math.random() * availableOptions.length)];
+      const randomCar = selected.car;
+      const randomImageName = selected.img;
+
+      console.log(`[Scheduler] Selected car: ${randomCar.name}, Image: ${randomImageName} (avoided repeats!)`);
 
       // 2. Generate Copy
       const copyData = await generatePostCopy(matchingSlot.theme, randomCar.name, config);
-      const caption = `${copyData.post_text}\n\n${copyData.hashtags}`;
+      
+      // Robust unpacking for Groq text structure (string or object fallback)
+      let postText = copyData.post_text;
+      if (typeof postText === 'object' && postText !== null) {
+        postText = Object.values(postText).join('\n\n');
+      }
+      const caption = `${postText}\n\n${copyData.hashtags}`;
 
       // 3. Load original car photo buffer (Supports Supabase Storage bucket download)
       let activeImageBuffer = null;
@@ -1437,12 +2026,14 @@ cron.schedule('* * * * *', async () => {
         activeImageBuffer = await fs.readFile(originalImagePath);
       }
 
-      // 4. Apply Photoroom Background Replacement if active
-      if (config.bgReplacementEnabled && copyData.background_prompt && process.env.PHOTOROOM_API_KEY) {
+      // 4. Apply Background Replacement if active (supports Cloudinary and Photoroom)
+      const hasCloudinary = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+      const hasPhotoroom = !!process.env.PHOTOROOM_API_KEY;
+      if (config.bgReplacementEnabled && copyData.background_prompt && (hasCloudinary || hasPhotoroom)) {
         try {
           activeImageBuffer = await replaceBackground(activeImageBuffer, randomImageName, copyData.background_prompt);
         } catch (pe) {
-          console.error("[Scheduler] Photoroom background replacement failed. Falling back to original car photo.", pe);
+          console.error("[Scheduler] Background replacement failed. Falling back to original car photo.", pe);
         }
       }
 
@@ -1485,8 +2076,16 @@ cron.schedule('* * * * *', async () => {
           console.log(`[Scheduler] Pushing automated post to N8N...`);
           pubResult = await publishToN8N(watermarkedImageBuffer, randomImageName, caption, config);
         } else {
-          console.log(`[Scheduler] Directing automated post to Facebook...`);
+          console.log(`[Scheduler] Directing automated post to Facebook Page...`);
           pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
+
+          console.log(`[Scheduler] Directing automated post to Instagram Feed...`);
+          try {
+            await publishToInstagram(publicImageUrl, caption, false);
+            console.log(`[Scheduler] Automated post successfully published to Instagram Feed!`);
+          } catch (igErr) {
+            console.error(`[Scheduler] Direct Instagram Feed publish failed:`, igErr.message);
+          }
         }
       } catch (err) {
         console.error(`[Scheduler] Delivery failed, registering with error fallback...`, err.message);
