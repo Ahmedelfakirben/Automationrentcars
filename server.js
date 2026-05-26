@@ -1938,19 +1938,24 @@ app.post('/api/publish-story', async (req, res) => {
 
     // Reconstruct public URL if local
     let igPublicUrl = imageUrl;
-    if (!igPublicUrl.startsWith('http') && req.headers.host) {
-      const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
-      igPublicUrl = `${protocol}//${req.headers.host}${imageUrl}`;
+    let localFetchUrl = imageUrl; // Internal URL for fetching
+
+    if (!igPublicUrl.startsWith('http')) {
+      if (req.headers.host) {
+        const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
+        igPublicUrl = `${protocol}//${req.headers.host}${imageUrl}`;
+      }
+      localFetchUrl = `http://localhost:${PORT}${imageUrl}`;
     }
 
     let processedStoryBuffer = null;
 
     // Auto-Format to 9:16 Portrait Layout using Sharp for Instagram Story Direct Publish
     try {
-      console.log(`[Publish Story] Downloading image for 9:16 processing: ${igPublicUrl}...`);
+      console.log(`[Publish Story] Downloading image for 9:16 processing: ${localFetchUrl}...`);
       let imgBuffer;
-      if (igPublicUrl.startsWith('http')) {
-        const imgRes = await fetch(igPublicUrl);
+      if (localFetchUrl.startsWith('http')) {
+        const imgRes = await fetch(localFetchUrl);
         if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
         const arrayBuf = await imgRes.arrayBuffer();
         imgBuffer = Buffer.from(arrayBuf);
@@ -1992,8 +1997,8 @@ app.post('/api/publish-story', async (req, res) => {
     // Retrieve original buffer if formatting or upload failed to guarantee Facebook Story has a buffer
     if (!processedStoryBuffer) {
       try {
-        if (igPublicUrl.startsWith('http')) {
-          const imgRes = await fetch(igPublicUrl);
+        if (localFetchUrl.startsWith('http')) {
+          const imgRes = await fetch(localFetchUrl);
           if (imgRes.ok) {
             const arrayBuf = await imgRes.arrayBuffer();
             processedStoryBuffer = Buffer.from(arrayBuf);
