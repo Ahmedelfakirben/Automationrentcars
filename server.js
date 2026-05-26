@@ -2526,6 +2526,7 @@ cron.schedule('* * * * *', async () => {
       console.error(`[Scheduler] Error during auto-publishing:`, err);
       await logErrorEvent('Scheduler Feed Publish', err.message, err.stack);
     }
+  }
   } catch (criticalErr) {
     console.error("[Scheduler] CRITICAL ERROR in top-level cron job:", criticalErr);
     await logErrorEvent('Scheduler Critical Error', criticalErr.message || "Unknown error", criticalErr.stack);
