@@ -2160,9 +2160,9 @@ cron.schedule('* * * * *', async () => {
 
   const now = new Date();
   
-  // Format date parts to Casablanca timezone securely (Casablanca and Tetouan/Tangier share same Morocco time)
+  // Format date parts to Europe/Madrid timezone securely (matches user's GMT+2/GMT+1 timezone perfectly)
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Africa/Casablanca',
+    timeZone: 'Europe/Madrid',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false

@@ -1,10 +1,7 @@
 # ========================================================
 # PRODUCTION DOCKERFILE - 2S1M AUTO-PUBLISHER FOR COOLIFY
 # ========================================================
-FROM node:22-alpine AS base
-
-# Instalar dependencias del sistema necesarias para sharp (procesamiento de imágenes)
-RUN apk add --no-cache libc6-compat
+FROM node:22-slim AS base
 
 WORKDIR /app
 
