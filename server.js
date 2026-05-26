@@ -2159,12 +2159,25 @@ cron.schedule('* * * * *', async () => {
   if (!config.scheduler || !config.scheduler.enabled) return;
 
   const now = new Date();
-  const currentHourMin = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
+  // Format date parts to Casablanca timezone securely (Casablanca and Tetouan/Tangier share same Morocco time)
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Casablanca',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find(p => p.type === 'hour').value;
+  const minute = parts.find(p => p.type === 'minute').value;
+  const currentHourMin = `${hour}:${minute}`;
+
+  const storiesConfig = config.storiesScheduler || { enabled: true, morningTime: "11:00", afternoonTime: "19:00" };
 
   // -------------------------------------------------------------
-  // STORY AUTO-PUBLISHER FOR 11:00 AND 19:00
+  // STORY AUTO-PUBLISHER FOR DYNAMIC MORNING TIME
   // -------------------------------------------------------------
-  if (currentHourMin === "11:00") {
+  if (storiesConfig.enabled && currentHourMin === storiesConfig.morningTime) {
     console.log("[Scheduler] 11:00 AM hit. Generating 8 stories and publishing the first 4...");
     try {
       // 1. Pick a random car
@@ -2267,8 +2280,11 @@ cron.schedule('* * * * *', async () => {
     }
   }
 
-  if (currentHourMin === "19:00") {
-    console.log("[Scheduler] 07:00 PM hit. Checking for pending stories from morning...");
+  // -------------------------------------------------------------
+  // STORY AUTO-PUBLISHER FOR DYNAMIC AFTERNOON TIME
+  // -------------------------------------------------------------
+  if (storiesConfig.enabled && currentHourMin === storiesConfig.afternoonTime) {
+    console.log(`[Scheduler] ${storiesConfig.afternoonTime} hit. Checking for pending stories from morning...`);
     if (config.pendingStories && config.pendingStories.length > 0) {
       console.log(`[Scheduler] Found ${config.pendingStories.length} pending stories. Publishing...`);
       const storiesToPublish = [...config.pendingStories];
