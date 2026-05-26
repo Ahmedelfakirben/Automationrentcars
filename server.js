@@ -1577,14 +1577,38 @@ app.post('/api/generate-stories', async (req, res) => {
     const carName = carDef ? carDef.name : "Nuestra Flota Premium";
 
     // 1. Scan catalog photos for this car
-    const carFolder = path.join(WORKSPACE_DIR, carDef.folder);
+    // In production (Supabase active), list directly from the cloud bucket to avoid missing local folders
     let catalogImages = [];
-    if (existsSync(carFolder)) {
-      const files = await fs.readdir(carFolder);
-      catalogImages = files.filter(f => {
-        const ext = path.extname(f).toLowerCase();
-        return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
-      });
+    if (isSupabaseActive) {
+      try {
+        console.log(`[Stories] Listing catalog from Supabase bucket: flota/${carId}/...`);
+        const { data: sbFiles, error: sbError } = await supabase.storage.from('flota').list(carId, { limit: 100, sortBy: { column: 'name', order: 'asc' } });
+        if (!sbError && sbFiles) {
+          catalogImages = sbFiles
+            .map(f => f.name)
+            .filter(name => {
+              const ext = path.extname(name).toLowerCase();
+              return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+            });
+          console.log(`[Stories] Found ${catalogImages.length} catalog images from Supabase for car: ${carId}`);
+        } else {
+          console.warn(`[Stories] Supabase list error for ${carId}:`, sbError?.message);
+        }
+      } catch (sbErr) {
+        console.error(`[Stories] Supabase catalog list failed:`, sbErr.message);
+      }
+    }
+    // Also try local folder (local dev or fallback)
+    if (catalogImages.length === 0) {
+      const carFolder = path.join(WORKSPACE_DIR, carDef ? carDef.folder : carId);
+      if (existsSync(carFolder)) {
+        const files = await fs.readdir(carFolder);
+        catalogImages = files.filter(f => {
+          const ext = path.extname(f).toLowerCase();
+          return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+        });
+        console.log(`[Stories] Found ${catalogImages.length} catalog images locally for car: ${carId}`);
+      }
     }
 
     // 2. Scan published (AI generated) photos in local cache and filter by currently selected car
@@ -1597,13 +1621,33 @@ app.post('/api/generate-stories', async (req, res) => {
             (!f.startsWith('ai_') && !f.startsWith('published_') && !f.startsWith('auto_'))) {
           return false;
         }
-        // Extract original image filename (e.g. from auto_123456789_interior.jpg)
         const parts = f.split('_');
         if (parts.length < 3) return false;
         const originalName = parts.slice(2).join('_');
-        // Ensure this AI generated photo originally belongs to this car's catalog
         return catalogImages.includes(originalName);
       });
+    }
+    // In production, also check Supabase 'publicados/' for AI-generated images for this car
+    if (isSupabaseActive && publishedImages.length === 0) {
+      try {
+        const { data: pubFiles } = await supabase.storage.from('flota').list('publicados', { limit: 200 });
+        if (pubFiles) {
+          publishedImages = pubFiles
+            .map(f => f.name)
+            .filter(name => {
+              const ext = path.extname(name).toLowerCase();
+              if (ext !== '.jpg' && ext !== '.jpeg' && ext !== '.png') return false;
+              if (!name.startsWith('ai_') && !name.startsWith('published_') && !name.startsWith('auto_')) return false;
+              const parts = name.split('_');
+              if (parts.length < 3) return false;
+              const originalName = parts.slice(2).join('_');
+              return catalogImages.includes(originalName);
+            });
+          console.log(`[Stories] Found ${publishedImages.length} AI-published images in Supabase for car: ${carId}`);
+        }
+      } catch (e) {
+        console.warn('[Stories] Supabase publicados listing failed:', e.message);
+      }
     }
 
     // 3. Select 8 images (up to 4 AI generated, rest from catalog) ensuring maximum diversity
@@ -2072,9 +2116,9 @@ app.post('/api/publish-story', async (req, res) => {
     // Format full caption for logs or if N8N/FB is used
     const caption = `[Story] ${storyText}\n🔗 CTA: ${stickerCta || 'Reserva'}\n🎵 Musica: ${musicSuggestion || ''}`;
 
-    // Reconstruct public URL if local
+    // Reconstruct public URL if local path (relative URL like /published/...)
     let igPublicUrl = imageUrl;
-    let localFetchUrl = imageUrl; // Internal URL for fetching
+    let localFetchUrl = imageUrl;
 
     if (!igPublicUrl.startsWith('http')) {
       if (req.headers.host) {
@@ -2086,11 +2130,23 @@ app.post('/api/publish-story', async (req, res) => {
 
     let processedStoryBuffer = null;
 
+    // If imageUrl is already a public Supabase CDN URL, skip local fetch entirely —
+    // just pass the URL directly to Meta API and do a lightweight re-upload for 9:16 formatting.
+    const isAlreadyPublicUrl = imageUrl.startsWith('https://');
+
     // Auto-Format to 9:16 Portrait Layout using Sharp for Instagram Story Direct Publish
     try {
-      console.log(`[Publish Story] Downloading image for 9:16 processing: ${localFetchUrl}...`);
-      let imgBuffer;
-      if (localFetchUrl.startsWith('http')) {
+      let imgBuffer = null;
+
+      if (isAlreadyPublicUrl) {
+        // Catalog image from Supabase CDN — fetch directly without local proxy
+        console.log(`[Publish Story] Fetching catalog image from public CDN: ${imageUrl}...`);
+        const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+        if (!imgRes.ok) throw new Error(`CDN fetch failed: ${imgRes.status} ${imgRes.statusText}`);
+        const arrayBuf = await imgRes.arrayBuffer();
+        imgBuffer = Buffer.from(arrayBuf);
+      } else if (localFetchUrl.startsWith('http')) {
+        console.log(`[Publish Story] Downloading image for 9:16 processing: ${localFetchUrl}...`);
         const imgRes = await fetch(localFetchUrl);
         if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
         const arrayBuf = await imgRes.arrayBuffer();
@@ -2128,6 +2184,11 @@ app.post('/api/publish-story', async (req, res) => {
       console.log(`[Publish Story] 9:16 Image ready. URL: ${igPublicUrl}`);
     } catch (err) {
       console.error("[Publish Story] 9:16 formatting failed, falling back to original image:", err.message);
+      // If imageUrl is already a CDN URL, use it directly as fallback — Meta can download it directly
+      if (isAlreadyPublicUrl) {
+        igPublicUrl = imageUrl;
+        console.log(`[Publish Story] Using original CDN URL as fallback: ${igPublicUrl}`);
+      }
     }
 
     // Retrieve original buffer if formatting or upload failed to guarantee Facebook Story has a buffer
