@@ -1044,17 +1044,18 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
 
   // Reconstruct public URL if local
   let igPublicUrl = imageUrl;
-  if (!igPublicUrl.startsWith('http') && process.env.PORT) {
-    igPublicUrl = `http://localhost:${process.env.PORT}${imageUrl}`;
+  let localFetchUrl = imageUrl;
+  if (!igPublicUrl.startsWith('http')) {
+    localFetchUrl = `http://127.0.0.1:${process.env.PORT || PORT}${imageUrl}`;
   }
 
   let processedStoryBuffer = null;
 
   try {
-    console.log(`[Auto Story] Preparing image buffer: ${igPublicUrl}...`);
+    console.log(`[Auto Story] Preparing image buffer: ${localFetchUrl}...`);
     let imgBuffer;
-    if (igPublicUrl.startsWith('http')) {
-      const imgRes = await fetch(igPublicUrl);
+    if (localFetchUrl.startsWith('http')) {
+      const imgRes = await fetch(localFetchUrl);
       if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
       const arrayBuf = await imgRes.arrayBuffer();
       imgBuffer = Buffer.from(arrayBuf);
@@ -1945,7 +1946,7 @@ app.post('/api/publish-story', async (req, res) => {
         const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
         igPublicUrl = `${protocol}//${req.headers.host}${imageUrl}`;
       }
-      localFetchUrl = `http://localhost:${PORT}${imageUrl}`;
+      localFetchUrl = `http://127.0.0.1:${PORT}${imageUrl}`;
     }
 
     let processedStoryBuffer = null;
