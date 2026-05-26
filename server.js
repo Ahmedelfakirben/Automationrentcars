@@ -1244,13 +1244,40 @@ async function publishToInstagram(imageUrl, caption, isStory = false) {
     const containerId = containerData.id;
     console.log(`[Instagram] Media container created successfully. ID: ${containerId}`);
 
-    // 3. Publish the media container
-    if (isStory) {
-      console.log(`[Instagram] Stories container created (ID: ${containerId}). Waiting 5 seconds for Meta background processing...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    } else {
-      console.log(`[Instagram] Feed container created (ID: ${containerId}). Waiting 3 seconds...`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
+    // 3. Poll/wait for the container to be ready
+    console.log(`[Instagram] Media container ${containerId} created. Polling status before publishing...`);
+    let isReady = false;
+    const maxPolls = 15;
+    const pollIntervalMs = 3000; // 3 seconds
+    let statusData = null;
+
+    for (let i = 0; i < maxPolls; i++) {
+      console.log(`[Instagram] Polling container ${containerId} status (Attempt ${i + 1}/${maxPolls})...`);
+      const statusRes = await fetch(`https://graph.facebook.com/v19.0/${containerId}?fields=status_code,error&access_token=${accessToken}`);
+      statusData = await statusRes.json();
+      
+      if (!statusRes.ok) {
+        throw new Error(statusData.error ? statusData.error.message : "Error al obtener estado del contenedor de Instagram");
+      }
+
+      console.log(`[Instagram] Container ${containerId} status_code is: ${statusData.status_code}`);
+
+      if (statusData.status_code === 'FINISHED') {
+        isReady = true;
+        break;
+      } else if (statusData.status_code === 'ERROR') {
+        let detail = "Error de procesamiento de Meta";
+        if (statusData.error) {
+          detail = `${statusData.error.message} (code: ${statusData.error.code}, subcode: ${statusData.error.error_subcode})`;
+        }
+        throw new Error(`El contenedor de Instagram fallo en procesarse: ${detail}`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+
+    if (!isReady) {
+      throw new Error(`El contenedor de Instagram no se proceso a tiempo (status: ${statusData ? statusData.status_code : 'desconocido'})`);
     }
 
     console.log(`[Instagram] Publishing media container ${containerId}...`);
@@ -1269,10 +1296,27 @@ async function publishToInstagram(imageUrl, caption, isStory = false) {
     }
 
     console.log(`[Instagram] Published successfully! Post ID: ${publishData.id}`);
+    
+    // Fetch the actual permalink from Instagram Graph API so it correctly directs to /stories/ or the exact post
+    let permalink = `https://www.instagram.com/p/${publishData.id}`; // Fallback
+    try {
+      console.log(`[Instagram] Fetching permalink for published media ${publishData.id}...`);
+      const permalinkRes = await fetch(`https://graph.facebook.com/v19.0/${publishData.id}?fields=permalink&access_token=${accessToken}`);
+      if (permalinkRes.ok) {
+        const permalinkData = await permalinkRes.json();
+        if (permalinkData.permalink) {
+          permalink = permalinkData.permalink;
+          console.log(`[Instagram] Fetched actual permalink: ${permalink}`);
+        }
+      }
+    } catch (pe) {
+      console.warn(`[Instagram] Failed to fetch permalink: ${pe.message}`);
+    }
+
     return {
       simulated: false,
       postId: publishData.id,
-      url: `https://www.instagram.com/p/${publishData.id}`
+      url: permalink
     };
   } catch (err) {
     console.error("Instagram Publishing Error:", err);
