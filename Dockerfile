@@ -24,6 +24,10 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV NODE_OPTIONS=--experimental-websocket
+ENV TZ="Europe/Madrid"
+
+# Instalar dependencias del sistema necesarias (tzdata para la zona horaria)
+RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
 
 # Comando para arrancar el servidor
 CMD ["npm", "start"]

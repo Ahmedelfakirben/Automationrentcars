@@ -2155,22 +2155,17 @@ app.post('/api/config', async (req, res) => {
 // BACKGROUND SCHEDULER (Multi-slot cron)
 // -------------------------------------------------------------
 cron.schedule('* * * * *', async () => {
-  const config = await getConfig();
-  if (!config.scheduler || !config.scheduler.enabled) return;
+  try {
+    const config = await getConfig();
+    if (!config.scheduler || !config.scheduler.enabled) return;
 
-  const now = new Date();
-  
-  // Format date parts to Europe/Madrid timezone securely (matches user's GMT+2/GMT+1 timezone perfectly)
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Madrid',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
-  const parts = formatter.formatToParts(now);
-  const hour = parts.find(p => p.type === 'hour').value;
-  const minute = parts.find(p => p.type === 'minute').value;
-  const currentHourMin = `${hour}:${minute}`;
+    const now = new Date();
+    
+    // Con TZ="Europe/Madrid" en Docker, la hora local ya es correcta.
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    const currentHourMin = `${hour}:${minute}`;
+
 
   const storiesConfig = config.storiesScheduler || { enabled: true, morningTime: "11:00", afternoonTime: "19:00" };
 
@@ -2531,6 +2526,9 @@ cron.schedule('* * * * *', async () => {
       console.error(`[Scheduler] Error during auto-publishing:`, err);
       await logErrorEvent('Scheduler Feed Publish', err.message, err.stack);
     }
+  } catch (criticalErr) {
+    console.error("[Scheduler] CRITICAL ERROR in top-level cron job:", criticalErr);
+    await logErrorEvent('Scheduler Critical Error', criticalErr.message || "Unknown error", criticalErr.stack);
   }
 });
 
