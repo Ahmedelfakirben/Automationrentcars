@@ -780,56 +780,70 @@ Instrucciones específicas:
 `;
   }
 
-  const requestBody = {
-    model: "llama-3.3-70b-specdec",
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt
-      },
-      {
-        role: "user",
-        content: `Genera el post perfecto en JSON para promocionar el coche: ${carName}. Recuerda respetar estrictamente los 4 idiomas en orden (FR, AR, ES, EN) y la firma de contacto inamovible:
+  const modelsToTry = [
+    "llama-3.3-70b-versatile",
+    "llama-3.3-70b-specdec",
+    "llama-3.1-8b-instant"
+  ];
+
+  let lastError = null;
+
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`[Groq] Attempting content generation with model: ${modelName}...`);
+      const requestBody = {
+        model: modelName,
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: `Genera el post perfecto en JSON para promocionar el coche: ${carName}. Recuerda respetar estrictamente los 4 idiomas en orden (FR, AR, ES, EN) y la firma de contacto inamovible:
 📍 RUE 14 AV MOHAMED BENOUNA, QUARTIER BOUJARAH, TÉTOUAN
 📞 06 60 29 28 21 / 05 31 33 32 93
 ✅ WhatsApp: +212 6 60 29 28 21
 🌐 rentcartetouan.ma | 2s1mrentcar.com
 `
-      }
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.85
-  };
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.85
+      };
 
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Groq API Error: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    if (result.usage) {
-      await trackUsage('groq', null, {
-        promptTokens: result.usage.prompt_tokens,
-        completionTokens: result.usage.completion_tokens,
-        totalTokens: result.usage.total_tokens
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq API Error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (result.usage) {
+        await trackUsage('groq', null, {
+          promptTokens: result.usage.prompt_tokens,
+          completionTokens: result.usage.completion_tokens,
+          totalTokens: result.usage.total_tokens
+        });
+      }
+      const rawContent = result.choices[0].message.content.trim();
+      return JSON.parse(rawContent);
+    } catch (err) {
+      console.warn(`[Groq] Model ${modelName} failed:`, err.message);
+      lastError = err;
     }
-    const rawContent = result.choices[0].message.content.trim();
-    return JSON.parse(rawContent);
-  } catch (err) {
-    console.error("Groq Copy Generation Error:", err);
-    throw err;
   }
+
+  console.error("Groq Copy Generation Error after trying all models:", lastError);
+  throw lastError;
 }
 
 // Generate Stories Package (8 stories, 4 languages, music suggestion)
@@ -867,38 +881,53 @@ ESTRUCTURA DEL JSON REQUERIDA:
 VEHÍCULO A DESTACAR: ${carName}
 `;
 
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-specdec",
-        messages: [{ role: "system", content: systemPrompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.85
-      })
-    });
+  const modelsToTry = [
+    "llama-3.3-70b-versatile",
+    "llama-3.3-70b-specdec",
+    "llama-3.1-8b-instant"
+  ];
 
-    if (!response.ok) {
-      throw new Error(`Groq API Error: ${response.status}`);
-    }
+  let lastError = null;
 
-    const result = await response.json();
-    if (result.usage) {
-      await trackUsage('groq', null, {
-        promptTokens: result.usage.prompt_tokens,
-        completionTokens: result.usage.completion_tokens,
-        totalTokens: result.usage.total_tokens
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`[Groq Stories] Attempting stories generation with model: ${modelName}...`);
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "system", content: systemPrompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.85
+        })
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Groq API Error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (result.usage) {
+        await trackUsage('groq', null, {
+          promptTokens: result.usage.prompt_tokens,
+          completionTokens: result.usage.completion_tokens,
+          totalTokens: result.usage.total_tokens
+        });
+      }
+      return JSON.parse(result.choices[0].message.content.trim());
+    } catch (err) {
+      console.warn(`[Groq Stories] Model ${modelName} failed:`, err.message);
+      lastError = err;
     }
-    return JSON.parse(result.choices[0].message.content.trim());
-  } catch (err) {
-    console.error("Groq Stories Generation Error:", err);
-    throw err;
   }
+
+  console.error("Groq Stories Generation Error after trying all models:", lastError);
+  throw lastError;
 }
 
 // Publish to Facebook Graph API
