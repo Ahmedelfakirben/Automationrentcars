@@ -119,6 +119,34 @@ async function getLogoBuffer() {
   return cachedLogoBuffer;
 }
 
+// Helper to log a technical error event dynamically and save it persistently
+async function logErrorEvent(type, message, details = null) {
+  try {
+    const config = await getConfig();
+    if (!config.errorLogs) config.errorLogs = [];
+
+    const newError = {
+      id: `err_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: new Date().toISOString(),
+      type, // 'Meta API', 'Cloudinary AI', 'Supabase', 'Scheduler', 'Groq AI', etc.
+      message: message || "Unknown error occurred",
+      details: details ? (typeof details === 'object' ? JSON.stringify(details, null, 2) : String(details)) : null
+    };
+
+    config.errorLogs.unshift(newError);
+
+    // Keep only the last 50 errors to prevent database bloat
+    if (config.errorLogs.length > 50) {
+      config.errorLogs = config.errorLogs.slice(0, 50);
+    }
+
+    await saveConfig(config);
+    console.log(`[Error Logger] Registered error: [${type}] - ${message}`);
+  } catch (err) {
+    console.error("Failed to write to persistent error logs:", err);
+  }
+}
+
 // Helper to load config (Supports Supabase Table 'settings' JSONB)
 async function getConfig() {
   if (isSupabaseActive) {
@@ -933,6 +961,7 @@ async function publishToFacebook(imageBuffer, caption) {
   } catch (err) {
     await trackUsage('facebook', null, 'failed');
     console.error("Facebook Publishing Error:", err);
+    await logErrorEvent('Meta Facebook Feed API', err.message);
     throw err;
   }
 }
@@ -1000,6 +1029,7 @@ async function publishToFacebookStory(imageBuffer) {
   } catch (err) {
     await trackUsage('facebook', null, 'failed');
     console.error("Facebook Story Publishing Error:", err);
+    await logErrorEvent('Meta Facebook Story API', err.message);
     throw err;
   }
 }
@@ -1368,6 +1398,28 @@ app.post('/api/auth/logout', (req, res) => {
 // -------------------------------------------------------------
 // API ENDPOINTS
 // -------------------------------------------------------------
+
+// Get all technical error logs
+app.get('/api/errors', async (req, res) => {
+  try {
+    const config = await getConfig();
+    res.json({ errors: config.errorLogs || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Clear all technical error logs
+app.post('/api/errors/clear', async (req, res) => {
+  try {
+    const config = await getConfig();
+    config.errorLogs = [];
+    await saveConfig(config);
+    res.json({ success: true, message: 'Registro de errores limpiado con éxito.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Get all cars and images
 app.get('/api/cars', async (req, res) => {

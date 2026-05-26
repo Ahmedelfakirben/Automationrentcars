@@ -50,6 +50,9 @@
         <button class="nav-btn" data-tab="settings">
           <i data-lucide="settings"></i> Configuración
         </button>
+        <button class="nav-btn" data-tab="errors" style="border-left: 2px solid #ef4444; color: #fca5a5;">
+          <i data-lucide="alert-octagon" style="color: #ef4444;"></i> Errores y Fallos
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -584,6 +587,22 @@
 
                 <div class="divider"></div>
 
+                <h3 class="sub-title"><i data-lucide="instagram"></i> Horarios de Publicación de Stories</h3>
+                <p class="section-desc">Configura las horas exactas para las 2 publicaciones automáticas de Stories (mañana y tarde).</p>
+
+                <div style="display: flex; gap: 16px; margin-bottom: 15px;">
+                  <div class="form-group compact" style="flex: 1;">
+                    <label for="settings-stories-morning">Hora Mañana (4 Stories):</label>
+                    <input type="text" id="settings-stories-morning" class="form-control format-time" placeholder="11:00" value="11:00">
+                  </div>
+                  <div class="form-group compact" style="flex: 1;">
+                    <label for="settings-stories-afternoon">Hora Tarde (4 Stories):</label>
+                    <input type="text" id="settings-stories-afternoon" class="form-control format-time" placeholder="19:00" value="19:00">
+                  </div>
+                </div>
+
+                <div class="divider"></div>
+
                 <h3 class="sub-title"><i data-lucide="share-2"></i> Integración y Canal de Publicación</h3>
                 <p class="section-desc">Selecciona si prefieres enviar los posts generados directamente a tu página de Facebook o empujarlos al Webhook de tu N8N.</p>
 
@@ -730,6 +749,118 @@
                 <button type="button" class="btn btn-secondary" id="btn-generate-calendar">
                   <i data-lucide="sparkles"></i> Generar con IA
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB Content: Errors -->
+      <section class="tab-content hide" id="tab-errors">
+        <style>
+          .error-card {
+            background: rgba(239, 68, 68, 0.04);
+            border: 1px solid rgba(239, 68, 68, 0.12);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: transform 0.2s, border-color 0.2s;
+          }
+          .error-card:hover {
+            transform: translateY(-1px);
+            border-color: rgba(239, 68, 68, 0.25);
+            background: rgba(239, 68, 68, 0.06);
+          }
+          .error-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+          .error-type-tag {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.05em;
+          }
+          .error-time-str {
+            font-size: 11px;
+            color: #6b7280;
+          }
+          .error-msg-text {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #fca5a5;
+            line-height: 1.4;
+          }
+          .error-btn-expand {
+            background: none;
+            border: none;
+            color: #de6f00;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0;
+            margin-top: 4px;
+            width: fit-content;
+            transition: color 0.2s;
+          }
+          .error-btn-expand:hover {
+            color: #e28b3b;
+          }
+          .error-raw-box {
+            display: none;
+            background: #0d0e12;
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            color: #a78bfa;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+          }
+          .error-raw-box.show {
+            display: block;
+          }
+          .error-logs-container {
+            margin-top: 15px;
+          }
+        </style>
+
+        <div class="content-card">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
+            <h2 class="card-title" style="color: #fca5a5; display: flex; align-items: center; gap: 10px; margin: 0;">
+              <i data-lucide="alert-octagon" style="color: #ef4444; width: 22px; height: 22px;"></i> Registro de Errores y Fallos Técnicos
+            </h2>
+            <button type="button" class="btn btn-secondary" id="btn-clear-errors" style="border-color: rgba(239,68,68,0.3); color: #fca5a5; padding: 8px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Limpiar Registro
+            </button>
+          </div>
+          <div class="card-section" style="padding-top: 20px;">
+            <p class="section-desc" style="margin-bottom: 25px; color: var(--text-muted); font-size: 13px;">Monitorea de forma transparente cualquier fallo en la generación de IA (Cloudinary/Photoroom), problemas de conectividad con Supabase, o bloqueos de permisos de la API de Meta. Te ayuda a mantener un control total.</p>
+            
+            <div id="error-logs-container" class="error-logs-container">
+              <!-- Rendered dynamically -->
+              <div class="no-data-placeholder" style="text-align: center; padding: 48px 24px; color: var(--text-muted);">
+                <i data-lucide="check-circle" style="color: #22c55e; width: 44px; height: 44px; margin-bottom: 12px;"></i>
+                <h3 style="color: var(--text-primary); font-size: 16px; margin-bottom: 4px;">¡Todo marcha de maravilla!</h3>
+                <p style="font-size: 13px;">No se han registrado fallos técnicos ni alertas de error en el sistema.</p>
               </div>
             </div>
           </div>

@@ -264,6 +264,7 @@ class AutoPublisherApp {
     this.setupSettingsListeners();
     this.setupTelemetryListeners();
     this.setupLanguageListener();
+    this.setupErrorListeners();
     this.applyTranslations();
 
     // Fetch initial workspace data
@@ -318,7 +319,8 @@ class AutoPublisherApp {
       'studio': 'Content Studio AI',
       'history': 'Historial de Publicaciones',
       'telemetry': 'Monitoreo y Sistema de Alertas',
-      'settings': 'Ajustes y Automatización'
+      'settings': 'Ajustes y Automatización',
+      'errors': 'Registro de Errores y Fallos'
     };
     document.getElementById('page-title').innerText = titles[tabId] || 'Panel Administrativo';
     
@@ -331,6 +333,8 @@ class AutoPublisherApp {
       this.renderHistoryTable();
     } else if (tabId === 'telemetry') {
       this.renderTelemetry();
+    } else if (tabId === 'errors') {
+      this.renderErrorLogs();
     }
   }
 
@@ -398,6 +402,13 @@ class AutoPublisherApp {
     if (bgEnabled) {
       bgEnabled.checked = this.config.bgReplacementEnabled || false;
     }
+
+    // Stories Scheduler times
+    const storiesConfig = this.config.storiesScheduler || { enabled: true, morningTime: "11:00", afternoonTime: "19:00" };
+    const morningInput = document.getElementById('settings-stories-morning');
+    const afternoonInput = document.getElementById('settings-stories-afternoon');
+    if (morningInput) morningInput.value = storiesConfig.morningTime || "11:00";
+    if (afternoonInput) afternoonInput.value = storiesConfig.afternoonTime || "19:00";
 
     // Toggle editor bg prompt field visibility based on this setting
     const promptGroup = document.getElementById('editor-bg-prompt-group');
@@ -1135,6 +1146,9 @@ class AutoPublisherApp {
           const publisherChannel = document.getElementById('settings-publisher-channel').value;
           const n8nWebhookUrl = document.getElementById('settings-n8n-webhook').value.trim();
 
+          const storiesMorning = document.getElementById('settings-stories-morning').value.trim();
+          const storiesAfternoon = document.getElementById('settings-stories-afternoon').value.trim();
+
           const groqKey = document.getElementById('settings-groq-key').value.trim();
           const fbToken = document.getElementById('settings-fb-token').value.trim();
           const fbPageId = document.getElementById('settings-fb-page-id').value.trim();
@@ -1156,6 +1170,11 @@ class AutoPublisherApp {
               scheduler: {
                 enabled: schedulerEnabled,
                 slots: slots
+              },
+              storiesScheduler: {
+                enabled: true,
+                morningTime: storiesMorning,
+                afternoonTime: storiesAfternoon
               },
               publisherChannel: publisherChannel,
               n8nWebhookUrl: n8nWebhookUrl,
@@ -1827,6 +1846,97 @@ class AutoPublisherApp {
         setTimeout(() => toast.remove(), 300);
       }
     }, 4500);
+  }
+
+  // Listeners for error logs tab
+  setupErrorListeners() {
+    const btnClearErrors = document.getElementById('btn-clear-errors');
+    if (btnClearErrors) {
+      btnClearErrors.addEventListener('click', async () => {
+        if (!confirm('¿Estás seguro de que deseas limpiar el registro completo de fallos técnicos?')) return;
+        
+        btnClearErrors.disabled = true;
+        btnClearErrors.innerText = 'Limpiando...';
+        
+        try {
+          const response = await authFetch('/api/errors/clear', { method: 'POST' });
+          const data = await response.json();
+          if (!response.ok || data.error) throw new Error(data.error || 'Fallo al limpiar');
+          
+          this.showToast('Registro Limpiado', 'Los fallos técnicos se han restablecido.', 'success');
+          this.renderErrorLogs();
+        } catch (err) {
+          console.error(err);
+          this.showToast('Error', 'No se pudo limpiar el registro de errores.', 'error');
+        } finally {
+          btnClearErrors.disabled = false;
+          btnClearErrors.innerHTML = '<i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Limpiar Registro';
+          lucide.createIcons();
+        }
+      });
+    }
+  }
+
+  // Render technical error logs in DOM
+  async renderErrorLogs() {
+    const container = document.getElementById('error-logs-container');
+    if (!container) return;
+
+    try {
+      const response = await authFetch('/api/errors');
+      if (!response.ok) throw new Error('Could not fetch error logs');
+      const data = await response.json();
+      const errors = data.errors || [];
+
+      if (errors.length === 0) {
+        container.innerHTML = `
+          <div class="no-data-placeholder" style="text-align: center; padding: 48px 24px; color: var(--text-muted);">
+            <i data-lucide="check-circle" style="color: #22c55e; width: 44px; height: 44px; margin-bottom: 12px;"></i>
+            <h3 style="color: var(--text-primary); font-size: 16px; margin-bottom: 4px;">¡Todo marcha de maravilla!</h3>
+            <p style="font-size: 13px;">No se han registrado fallos técnicos ni alertas de error en el sistema.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      let html = '';
+      errors.forEach(err => {
+        const dateStr = new Date(err.timestamp).toLocaleString('es-ES', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        const detailsBtnHtml = err.details 
+          ? `<button class="error-btn-expand" onclick="this.nextElementSibling.classList.toggle('show'); this.querySelector('span').innerText = this.nextElementSibling.classList.contains('show') ? 'Ocultar Detalles' : 'Ver Detalles Técnicos'">
+               <i data-lucide="terminal" style="width: 12px; height: 12px;"></i> <span>Ver Detalles Técnicos</span>
+             </button>
+             <div class="error-raw-box">${err.details}</div>`
+          : '';
+
+        html += `
+          <div class="error-card">
+            <div class="error-header-row">
+              <span class="error-type-tag">${err.type}</span>
+              <span class="error-time-str">${dateStr}</span>
+            </div>
+            <div class="error-msg-text">${err.message}</div>
+            ${detailsBtnHtml}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = `
+        <div class="alert error" style="display: flex; gap: 10px; padding: 12px; border-radius: 8px;">
+          <i data-lucide="alert-octagon"></i> Error al cargar el registro de fallos técnicos.
+        </div>
+      `;
+      lucide.createIcons();
+    }
   }
 }
 
