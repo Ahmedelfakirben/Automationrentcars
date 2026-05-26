@@ -2267,6 +2267,7 @@ cron.schedule('* * * * *', async () => {
             console.log(`[Scheduler] Morning Story #${i+1} published successfully!`);
           } catch (stErr) {
             console.error(`[Scheduler] Morning Story #${i+1} failed:`, stErr.message);
+            await logErrorEvent('Scheduler Story Publish', `Morning Story #${i+1} failed: ${stErr.message}`);
           }
         }
 
@@ -2277,6 +2278,7 @@ cron.schedule('* * * * *', async () => {
       }
     } catch (storyGenErr) {
       console.error("[Scheduler] Morning story automatic process failed:", storyGenErr);
+      await logErrorEvent('Scheduler Morning Stories', storyGenErr.message, storyGenErr.stack);
     }
   }
 
@@ -2300,6 +2302,7 @@ cron.schedule('* * * * *', async () => {
           console.log(`[Scheduler] Afternoon Story #${i+5} published successfully!`);
         } catch (stErr) {
           console.error(`[Scheduler] Afternoon Story #${i+5} failed:`, stErr.message);
+          await logErrorEvent('Scheduler Story Publish', `Afternoon Story #${i+5} failed: ${stErr.message}`);
         }
       }
       console.log("[Scheduler] Afternoon stories publication finished.");
@@ -2344,11 +2347,13 @@ cron.schedule('* * * * *', async () => {
               console.log(`[Scheduler] Afternoon Story #${i+1} (freshly generated) published successfully!`);
             } catch (stErr) {
               console.error(`[Scheduler] Afternoon Story #${i+1} failed:`, stErr.message);
+              await logErrorEvent('Scheduler Story Publish', `Afternoon fresh story #${i+1} failed: ${stErr.message}`);
             }
           }
         }
       } catch (freshErr) {
         console.error("[Scheduler] Fresh afternoon stories generation failed:", freshErr);
+        await logErrorEvent('Scheduler Afternoon Stories', freshErr.message, freshErr.stack);
       }
     }
   }
@@ -2524,6 +2529,7 @@ cron.schedule('* * * * *', async () => {
       console.log(`[Scheduler] Post successfully registered! ID: ${pubResult.postId} (Delivery status: ${deliveryError ? 'FAILED' : 'SUCCESS'})`);
     } catch (err) {
       console.error(`[Scheduler] Error during auto-publishing:`, err);
+      await logErrorEvent('Scheduler Feed Publish', err.message, err.stack);
     }
   }
 });
