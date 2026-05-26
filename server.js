@@ -1544,53 +1544,77 @@ app.post('/api/generate-stories', async (req, res) => {
       });
     }
 
-    // 2. Scan published (AI generated) photos in local cache
+    // 2. Scan published (AI generated) photos in local cache and filter by currently selected car
     let publishedImages = [];
     if (existsSync(PUBLISHED_DIR)) {
       const files = await fs.readdir(PUBLISHED_DIR);
       publishedImages = files.filter(f => {
         const ext = path.extname(f).toLowerCase();
-        return (ext === '.jpg' || ext === '.jpeg' || ext === '.png') && 
-               (f.startsWith('ai_') || f.startsWith('published_') || f.startsWith('auto_'));
+        if ((ext !== '.jpg' && ext !== '.jpeg' && ext !== '.png') ||
+            (!f.startsWith('ai_') && !f.startsWith('published_') && !f.startsWith('auto_'))) {
+          return false;
+        }
+        // Extract original image filename (e.g. from auto_123456789_interior.jpg)
+        const parts = f.split('_');
+        if (parts.length < 3) return false;
+        const originalName = parts.slice(2).join('_');
+        // Ensure this AI generated photo originally belongs to this car's catalog
+        return catalogImages.includes(originalName);
       });
     }
 
-    // 3. Select 8 images (4 generated, 4 catalog)
-    const shuffle = arr => arr.sort(() => 0.5 - Math.random());
-    const shuffledPublished = shuffle([...publishedImages]);
-    const shuffledCatalog = shuffle([...catalogImages]);
-
+    // 3. Select 8 images (up to 4 AI generated, rest from catalog) ensuring maximum diversity
     const selectedPhotos = [];
+    const usedOriginalNames = new Set();
+    const shuffle = arr => arr.sort(() => 0.5 - Math.random());
+
+    // Take AI/published images first (max 4)
+    const shuffledPublished = shuffle([...publishedImages]);
     const publishedCountToTake = Math.min(4, shuffledPublished.length);
     for (let i = 0; i < publishedCountToTake; i++) {
-      // Get the correct public URL (If Supabase active, get it or fall back)
-      let imageUrl = `/published/${shuffledPublished[i]}`;
+      const filename = shuffledPublished[i];
+      let imageUrl = `/published/${filename}`;
       if (isSupabaseActive) {
-        const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${shuffledPublished[i]}`);
+        const { data } = supabase.storage.from('flota').getPublicUrl(`publicados/${filename}`);
         if (data && data.publicUrl) {
           imageUrl = data.publicUrl;
         }
       }
+
+      // Remember that this base photo was already selected as AI version
+      const parts = filename.split('_');
+      if (parts.length >= 3) {
+        const originalName = parts.slice(2).join('_');
+        usedOriginalNames.add(originalName);
+      }
+
       selectedPhotos.push({
         type: 'ai_generated',
-        imageName: shuffledPublished[i],
+        imageName: filename,
         imageUrl: imageUrl
       });
     }
 
+    // Take catalog photos, prioritizing those whose AI version has NOT been selected yet
+    const shuffledCatalog = shuffle([...catalogImages]);
+    const unusedCatalog = shuffledCatalog.filter(img => !usedOriginalNames.has(img));
+    const usedCatalog = shuffledCatalog.filter(img => usedOriginalNames.has(img));
+    const prioritizedCatalog = [...unusedCatalog, ...usedCatalog];
+
     const catalogCountToTake = 8 - selectedPhotos.length;
-    for (let i = 0; i < Math.min(catalogCountToTake, shuffledCatalog.length); i++) {
-      // The library image preview endpoint is safe and watermarked
+    for (let i = 0; i < Math.min(catalogCountToTake, prioritizedCatalog.length); i++) {
       selectedPhotos.push({
         type: 'library',
-        imageName: shuffledCatalog[i],
-        imageUrl: `/api/preview?carId=${carId}&imageName=${encodeURIComponent(shuffledCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
+        imageName: prioritizedCatalog[i],
+        imageUrl: `/api/preview?carId=${carId}&imageName=${encodeURIComponent(prioritizedCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
       });
     }
 
-    // Pad if still less than 8
-    while (selectedPhotos.length < 8 && selectedPhotos.length > 0) {
-      selectedPhotos.push(selectedPhotos[selectedPhotos.length % selectedPhotos.length]);
+    // Fix modulo duplication bug by cycling through the unique selected photos
+    const originalLength = selectedPhotos.length;
+    while (selectedPhotos.length < 8 && originalLength > 0) {
+      const indexToCopy = selectedPhotos.length % originalLength;
+      selectedPhotos.push({ ...selectedPhotos[indexToCopy] });
     }
 
     // Fallback if no images found at all
