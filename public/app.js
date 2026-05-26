@@ -1060,8 +1060,13 @@ class AutoPublisherApp {
         <div class="story-music-tag" style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a855f7; font-weight: 600; margin-bottom: 15px; background: rgba(168,85,247,0.1); padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(168,85,247,0.25);">
           <i data-lucide="music" style="width:13px;height:13px;"></i> <span>${musicSuggestion}</span>
         </div>
-        <button class="btn btn-primary btn-sm btn-block btn-publish-story-action" id="btn-pub-story-${story.id}" onclick="app.publishStory(${story.id})" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;">
-          <i data-lucide="instagram" style="width: 14px; height: 14px; margin-right: 4px;"></i> Publicar Story
+        <button class="btn btn-primary btn-sm btn-block btn-publish-story-action" id="btn-pub-story-${story.id}" onclick="app.publishStory(${story.id})" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="lucide-custom">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+          </svg>
+          Publicar Story
         </button>
       `;
 

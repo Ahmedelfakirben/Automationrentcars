@@ -1646,10 +1646,15 @@ app.post('/api/generate-stories', async (req, res) => {
 
     const catalogCountToTake = 8 - selectedPhotos.length;
     for (let i = 0; i < Math.min(catalogCountToTake, prioritizedCatalog.length); i++) {
+      // Direct public Supabase URL bypass if cloud mode is active, completely resolving Docker/VPS network issues in browser
+      let imageUrl = `/api/preview?carId=${carId}&imageName=${encodeURIComponent(prioritizedCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`;
+      if (isSupabaseActive) {
+        imageUrl = `${supabaseUrl}/storage/v1/object/public/flota/${carId}/${prioritizedCatalog[i]}`;
+      }
       selectedPhotos.push({
         type: 'library',
         imageName: prioritizedCatalog[i],
-        imageUrl: `/api/preview?carId=${carId}&imageName=${encodeURIComponent(prioritizedCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
+        imageUrl: imageUrl
       });
     }
 
@@ -2355,15 +2360,22 @@ cron.schedule('* * * * *', async () => {
 
         const catalogCountToTake = 8 - selectedPhotos.length;
         for (let i = 0; i < Math.min(catalogCountToTake, shuffledCatalog.length); i++) {
+          let imageUrl = `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(shuffledCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`;
+          if (isSupabaseActive) {
+            imageUrl = `${supabaseUrl}/storage/v1/object/public/flota/${randomCar.id}/${shuffledCatalog[i]}`;
+          }
           selectedPhotos.push({
             type: 'library',
             imageName: shuffledCatalog[i],
-            imageUrl: `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(shuffledCatalog[i])}&scale=0.15&position=bottom-right&opacity=0.95`
+            imageUrl: imageUrl
           });
         }
 
-        while (selectedPhotos.length < 8 && selectedPhotos.length > 0) {
-          selectedPhotos.push(selectedPhotos[selectedPhotos.length % selectedPhotos.length]);
+        // Fix modulo duplication bug by cycling through the unique selected photos
+        const originalLength = selectedPhotos.length;
+        while (selectedPhotos.length < 8 && originalLength > 0) {
+          const indexToCopy = selectedPhotos.length % originalLength;
+          selectedPhotos.push({ ...selectedPhotos[indexToCopy] });
         }
 
         if (selectedPhotos.length === 0) {
