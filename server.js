@@ -518,7 +518,21 @@ async function getWatermarkedImageBuffer(carId, imageName, settings) {
       const arrayBuffer = await data.arrayBuffer();
       rawImageBuffer = Buffer.from(arrayBuffer);
     } catch (err) {
-      console.error(`[Supabase] Failed to download image from storage bucket. Falling back to local disk.`, err);
+      console.error(`[Supabase] Client download failed, trying direct public URL fetch:`, err.message);
+      try {
+        const publicUrl = `${supabaseUrl}/storage/v1/object/public/flota/${carId}/${imageName}`;
+        console.log(`[Supabase] Direct fetch from URL: ${publicUrl}...`);
+        const fetchRes = await fetch(publicUrl);
+        if (fetchRes.ok) {
+          const arrayBuf = await fetchRes.arrayBuffer();
+          rawImageBuffer = Buffer.from(arrayBuf);
+          console.log(`[Supabase] Direct URL fetch successful!`);
+        } else {
+          throw new Error(`Status ${fetchRes.status}: ${fetchRes.statusText}`);
+        }
+      } catch (directErr) {
+        console.error(`[Supabase] Both client and direct URL download failed:`, directErr.message);
+      }
     }
   }
 
@@ -1786,7 +1800,21 @@ app.post('/api/preview-ai', async (req, res) => {
         const arrayBuffer = await data.arrayBuffer();
         activeImageBuffer = Buffer.from(arrayBuffer);
       } catch (err) {
-        console.error(`[Preview AI - Supabase] Download failed. Falling back to local.`, err);
+        console.error(`[Preview AI - Supabase] SDK download failed, trying direct public URL fetch:`, err.message);
+        try {
+          const publicUrl = `${supabaseUrl}/storage/v1/object/public/flota/${carId}/${imageName}`;
+          console.log(`[Preview AI - Supabase] Direct fetch from URL: ${publicUrl}...`);
+          const fetchRes = await fetch(publicUrl);
+          if (fetchRes.ok) {
+            const arrayBuf = await fetchRes.arrayBuffer();
+            activeImageBuffer = Buffer.from(arrayBuf);
+            console.log(`[Preview AI - Supabase] Direct URL fetch successful!`);
+          } else {
+            throw new Error(`Status ${fetchRes.status}: ${fetchRes.statusText}`);
+          }
+        } catch (directErr) {
+          console.error(`[Preview AI - Supabase] Both client and direct URL download failed:`, directErr.message);
+        }
       }
     }
 
