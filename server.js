@@ -732,6 +732,7 @@ REGLAS DE CONTENIDO:
 3. EMOJIS: Usa emojis adecuados pero sin saturar (máximo 4-5 por texto total). Emojis seguros: ⭐, 🚗, 📍, 📞, ✅, 🌐.
 4. HASHTAGS: Incluye hashtags dinámicos apropiados para hoy, que es **${currentDayName}** (ej: si es Jueves, incluye hashtags como #TangierThursday o #JuevesDeRuta; si es Sábado o Domingo, #FindeSemana, #EscapadaFinde, etc., adaptado al día de la semana).
 5. FORMATO DE SALIDA: Debes responder ÚNICAMENTE con un objeto JSON válido. No incluyas explicaciones ni etiquetas markdown de código en la respuesta. Solo devuelve el JSON crudo.
+   IMPORTANTE: Asegúrate de que todos los saltos de línea (\n) y comillas dobles internas dentro de los textos estén estrictamente escapados para no romper la sintaxis JSON. Evita cadenas de texto con saltos de línea literales; usa el carácter de escape \n de forma explícita.
 
 ESTRUCTURA DEL JSON REQUERIDA:
 {
@@ -780,7 +781,7 @@ Instrucciones específicas:
   }
 
   const requestBody = {
-    model: "llama-3.1-8b-instant",
+    model: "llama-3.3-70b-specdec",
     messages: [
       {
         role: "system",
@@ -848,6 +849,7 @@ NORMAS DE LAS STORIES:
 - Emojis: 1 o 2 emojis por story.
 - Música Recomendada: Para cada story, sugiere una canción comercial tendencia y popular (de artistas populares, música veraniega, chill, latina, house o árabe moderna) adecuada para acompañar la historia en Instagram/Facebook.
 - Formato de Salida: Devuelve ÚNICAMENTE un objeto JSON válido con un array de 8 objetos de stories. No añadas introducciones, ni comentarios, ni bloques de código.
+  IMPORTANTE: Asegúrate de que todos los saltos de línea (\n) y comillas dobles internas dentro de los textos estén estrictamente escapados para no romper la sintaxis JSON. Evita cadenas de texto con saltos de línea literales; usa el carácter de escape \n de forma explícita.
 
 ESTRUCTURA DEL JSON REQUERIDA:
 {
@@ -873,7 +875,7 @@ VEHÍCULO A DESTACAR: ${carName}
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "llama-3.3-70b-specdec",
         messages: [{ role: "system", content: systemPrompt }],
         response_format: { type: "json_object" },
         temperature: 0.85
