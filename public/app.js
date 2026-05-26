@@ -1299,6 +1299,43 @@ class AutoPublisherApp {
     }
   }
 
+  // Update the 3 stat cards on the Dashboard
+  updateStats() {
+    const posts = this.config.publishedPosts || [];
+
+    // Posts today: count entries where timestamp is within today (local time)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const postsToday = posts.filter(p => {
+      try { return new Date(p.timestamp) >= todayStart && !p.isStory; }
+      catch(e) { return false; }
+    }).length;
+
+    // Max daily posts from scheduler slots
+    const scheduledSlots = (this.config.scheduler && this.config.scheduler.slots)
+      ? this.config.scheduler.slots.filter(s => s.enabled).length
+      : 3;
+    const maxPosts = Math.max(scheduledSlots, 3);
+
+    // Stories today: from storiesPackage (generated in memory) or today's story posts
+    const storiesToday = this.storiesPackage.length || posts.filter(p => {
+      try { return p.isStory && new Date(p.timestamp) >= todayStart; }
+      catch(e) { return false; }
+    }).length;
+
+    // Total historic posts (excluding stories)
+    const totalPosts = posts.filter(p => !p.isStory).length;
+
+    // Update DOM
+    const elToday = document.getElementById('stats-published-today');
+    const elStories = document.getElementById('stats-stories-today');
+    const elTotal = document.getElementById('stats-total-posts');
+
+    if (elToday) elToday.innerText = `${postsToday} / ${maxPosts}`;
+    if (elStories) elStories.innerText = `${storiesToday} / 8`;
+    if (elTotal) elTotal.innerText = totalPosts;
+  }
+
   // Dashboard status & slots renderer
   renderDashboardSlots() {
     const container = document.getElementById('dashboard-slots-list');

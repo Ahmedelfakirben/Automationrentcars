@@ -1667,11 +1667,14 @@ app.post('/api/generate-stories', async (req, res) => {
 
     // Fallback if no images found at all
     if (selectedPhotos.length === 0) {
+      const fallbackUrl = isSupabaseActive
+        ? `${supabaseUrl}/storage/v1/object/public/flota/favicon.svg`
+        : '/favicon.svg';
       for (let i = 0; i < 8; i++) {
         selectedPhotos.push({
           type: 'library',
-          imageName: 'flota.png',
-          imageUrl: '/flota.png'
+          imageName: 'favicon.svg',
+          imageUrl: fallbackUrl
         });
       }
     }
@@ -2379,8 +2382,11 @@ cron.schedule('* * * * *', async () => {
         }
 
         if (selectedPhotos.length === 0) {
+          const fallbackUrl = isSupabaseActive
+            ? `${supabaseUrl}/storage/v1/object/public/flota/favicon.svg`
+            : '/favicon.svg';
           for (let i = 0; i < 8; i++) {
-            selectedPhotos.push({ type: 'library', imageName: 'flota.png', imageUrl: '/flota.png' });
+            selectedPhotos.push({ type: 'library', imageName: 'favicon.svg', imageUrl: fallbackUrl });
           }
         }
 
