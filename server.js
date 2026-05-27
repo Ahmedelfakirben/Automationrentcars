@@ -1087,19 +1087,30 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
 
   const caption = `[Story] ${storyText}\n🔗 CTA: ${stickerCta || 'Reserva'}\n🎵 Musica: ${musicSuggestion || ''}`;
 
-  // Reconstruct public URL if local
+  // Detect if imageUrl is already a public Supabase CDN URL
+  const isAlreadyPublicUrl = imageUrl.startsWith('https://');
+
+  // Reconstruct public URL if local relative path
   let igPublicUrl = imageUrl;
   let localFetchUrl = imageUrl;
-  if (!igPublicUrl.startsWith('http')) {
+  if (!isAlreadyPublicUrl && !igPublicUrl.startsWith('http')) {
     localFetchUrl = `http://127.0.0.1:${process.env.PORT || PORT}${imageUrl}`;
   }
 
   let processedStoryBuffer = null;
 
   try {
-    console.log(`[Auto Story] Preparing image buffer: ${localFetchUrl}...`);
-    let imgBuffer;
-    if (localFetchUrl.startsWith('http')) {
+    let imgBuffer = null;
+
+    if (isAlreadyPublicUrl) {
+      // Image is already on Supabase CDN — fetch directly with timeout
+      console.log(`[Auto Story] Fetching catalog image from Supabase CDN: ${imageUrl}...`);
+      const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
+      if (!imgRes.ok) throw new Error(`CDN fetch failed: ${imgRes.status} ${imgRes.statusText}`);
+      const arrayBuf = await imgRes.arrayBuffer();
+      imgBuffer = Buffer.from(arrayBuf);
+    } else if (localFetchUrl.startsWith('http')) {
+      console.log(`[Auto Story] Fetching local image: ${localFetchUrl}...`);
       const imgRes = await fetch(localFetchUrl);
       if (!imgRes.ok) throw new Error(`Could not fetch image: ${imgRes.statusText}`);
       const arrayBuf = await imgRes.arrayBuffer();
@@ -1132,6 +1143,11 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
     console.log(`[Auto Story] 9:16 Image ready. URL: ${igPublicUrl}`);
   } catch (err) {
     console.error("[Auto Story] 9:16 formatting failed, falling back to original image:", err.message);
+    // When image was already a CDN URL, use it directly — Meta can download it on its own
+    if (isAlreadyPublicUrl) {
+      igPublicUrl = imageUrl;
+      console.log(`[Auto Story] Using original CDN URL as fallback for Meta: ${igPublicUrl}`);
+    }
   }
 
   // Fallback buffer for Facebook Story
@@ -2385,14 +2401,31 @@ cron.schedule('* * * * *', async () => {
         const carName = randomCar.name;
 
         // 2. Select 8 images (4 AI/generated, 4 catalog library)
-        const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+        // In production, list images directly from Supabase Storage
         let catalogImages = [];
-        if (existsSync(carFolder)) {
-          const files = await fs.readdir(carFolder);
-          catalogImages = files.filter(f => {
-            const ext = path.extname(f).toLowerCase();
-            return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
-          });
+        if (isSupabaseActive) {
+          try {
+            const { data: sbFiles, error: sbError } = await supabase.storage.from('flota').list(randomCar.id, { limit: 100 });
+            if (!sbError && sbFiles) {
+              catalogImages = sbFiles.map(f => f.name).filter(name => {
+                const ext = path.extname(name).toLowerCase();
+                return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+              });
+              console.log(`[Scheduler Morning] Found ${catalogImages.length} images in Supabase for car: ${randomCar.id}`);
+            }
+          } catch (sbErr) {
+            console.error('[Scheduler Morning] Supabase catalog list failed:', sbErr.message);
+          }
+        }
+        if (catalogImages.length === 0) {
+          const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+          if (existsSync(carFolder)) {
+            const files = await fs.readdir(carFolder);
+            catalogImages = files.filter(f => {
+              const ext = path.extname(f).toLowerCase();
+              return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+            });
+          }
         }
 
         let publishedImages = [];
@@ -2526,15 +2559,31 @@ cron.schedule('* * * * *', async () => {
           const storiesData = await generateStoriesPackage(carName, config);
           const stories = storiesData.stories || [];
 
-          // Scan catalog photos
-          const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+          // Scan catalog photos from Supabase in production
           let catalogImages = [];
-          if (existsSync(carFolder)) {
-            const files = await fs.readdir(carFolder);
-            catalogImages = files.filter(f => {
-              const ext = path.extname(f).toLowerCase();
-              return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
-            });
+          if (isSupabaseActive) {
+            try {
+              const { data: sbFiles, error: sbError } = await supabase.storage.from('flota').list(randomCar.id, { limit: 100 });
+              if (!sbError && sbFiles) {
+                catalogImages = sbFiles.map(f => f.name).filter(name => {
+                  const ext = path.extname(name).toLowerCase();
+                  return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+                });
+                console.log(`[Scheduler Afternoon] Found ${catalogImages.length} images in Supabase for car: ${randomCar.id}`);
+              }
+            } catch (sbErr) {
+              console.error('[Scheduler Afternoon] Supabase catalog list failed:', sbErr.message);
+            }
+          }
+          if (catalogImages.length === 0) {
+            const carFolder = path.join(WORKSPACE_DIR, randomCar.folder);
+            if (existsSync(carFolder)) {
+              const files = await fs.readdir(carFolder);
+              catalogImages = files.filter(f => {
+                const ext = path.extname(f).toLowerCase();
+                return ext === '.jpg' || ext === '.jpeg' || ext === '.png';
+              });
+            }
           }
 
           const shuffle = arr => arr.sort(() => 0.5 - Math.random());
@@ -2544,13 +2593,15 @@ cron.schedule('* * * * *', async () => {
           const storiesToPublish = stories.slice(0, 4);
           for (let i = 0; i < storiesToPublish.length; i++) {
             const st = storiesToPublish[i];
-            const img = shuffledCatalog[i % shuffledCatalog.length] || 'flota.png';
-            const imageUrl = shuffledCatalog.length > 0 
-              ? `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(img)}&scale=0.15&position=bottom-right&opacity=0.95`
-              : '/flota.png';
+            const img = shuffledCatalog[i % (shuffledCatalog.length || 1)];
+            let imageUrl = img
+              ? (isSupabaseActive
+                ? `${supabaseUrl}/storage/v1/object/public/flota/${randomCar.id}/${img}`
+                : `/api/preview?carId=${randomCar.id}&imageName=${encodeURIComponent(img)}&scale=0.15&position=bottom-right&opacity=0.95`)
+              : '/favicon.svg';
 
             try {
-              await publishSingleStory(st.text, st.sticker_cta, imageUrl, img, st.music_suggestion);
+              await publishSingleStory(st.text, st.sticker_cta, imageUrl, img || 'favicon.svg', st.music_suggestion);
               console.log(`[Scheduler] Afternoon Story #${i+1} (freshly generated) published successfully!`);
             } catch (stErr) {
               console.error(`[Scheduler] Afternoon Story #${i+1} failed:`, stErr.message);
