@@ -245,6 +245,10 @@ class AutoPublisherApp {
     this.generatedHashtags = "";
     this.storiesPackage = [];
     
+    // History Pagination
+    this.historyCurrentPage = 1;
+    this.historyItemsPerPage = 10;
+    
     // Multi-Language translation variables
     this.TRANSLATIONS = TRANSLATIONS;
     this.currentLang = localStorage.getItem('2s1m_lang') || 'es';
@@ -1492,12 +1496,22 @@ class AutoPublisherApp {
           <td colspan="6" class="table-empty">No hay registros de publicaciones.</td>
         </tr>
       `;
+      const pgContainer = document.getElementById('history-pagination-controls');
+      if (pgContainer) pgContainer.innerHTML = '';
       return;
     }
 
+    // Pagination Calculation
+    const totalPages = Math.ceil(posts.length / this.historyItemsPerPage);
+    if (this.historyCurrentPage > totalPages) this.historyCurrentPage = totalPages;
+    if (this.historyCurrentPage < 1) this.historyCurrentPage = 1;
+
+    const startIndex = (this.historyCurrentPage - 1) * this.historyItemsPerPage;
+    const paginatedPosts = posts.slice(startIndex, startIndex + this.historyItemsPerPage);
+
     tbody.innerHTML = '';
     
-    posts.forEach(post => {
+    paginatedPosts.forEach(post => {
       const tr = document.createElement('tr');
 
       const dateStr = new Date(post.timestamp).toLocaleString('es-ES', {
@@ -1547,6 +1561,52 @@ class AutoPublisherApp {
     });
 
     lucide.createIcons();
+    this.renderHistoryPagination(totalPages);
+  }
+
+  // Render History Pagination Controls
+  renderHistoryPagination(totalPages) {
+    const container = document.getElementById('history-pagination-controls');
+    if (!container) return;
+
+    if (totalPages <= 1) {
+      container.innerHTML = '';
+      return;
+    }
+
+    let html = '';
+    
+    // Prev button
+    html += `<button class="btn btn-sm btn-secondary" onclick="app.changeHistoryPage(${this.historyCurrentPage - 1})" ${this.historyCurrentPage === 1 ? 'disabled' : ''} style="display: flex; align-items: center; gap: 4px;"><i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i> Anterior</button>`;
+
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+      if (totalPages > 7) {
+        if (i === 1 || i === totalPages || (i >= this.historyCurrentPage - 1 && i <= this.historyCurrentPage + 1)) {
+          const active = i === this.historyCurrentPage ? 'background: var(--color-primary); color: #000; border-color: var(--color-primary);' : '';
+          html += `<button class="btn btn-sm btn-outline" style="${active}" onclick="app.changeHistoryPage(${i})">${i}</button>`;
+        } else if (i === 2 && this.historyCurrentPage > 3) {
+          html += `<span style="color: var(--text-muted); padding: 0 4px;">...</span>`;
+        } else if (i === totalPages - 1 && this.historyCurrentPage < totalPages - 2) {
+          html += `<span style="color: var(--text-muted); padding: 0 4px;">...</span>`;
+        }
+      } else {
+        const active = i === this.historyCurrentPage ? 'background: var(--color-primary); color: #000; border-color: var(--color-primary);' : '';
+        html += `<button class="btn btn-sm btn-outline" style="${active}" onclick="app.changeHistoryPage(${i})">${i}</button>`;
+      }
+    }
+
+    // Next button
+    html += `<button class="btn btn-sm btn-secondary" onclick="app.changeHistoryPage(${this.historyCurrentPage + 1})" ${this.historyCurrentPage === totalPages ? 'disabled' : ''} style="display: flex; align-items: center; gap: 4px;">Siguiente <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i></button>`;
+
+    container.innerHTML = html;
+    lucide.createIcons();
+  }
+
+  // Change History Page
+  changeHistoryPage(page) {
+    this.historyCurrentPage = page;
+    this.renderHistoryTable();
   }
 
   // Render Telemetry Statistics & Alert Center
