@@ -2062,20 +2062,21 @@ app.post('/api/publish', async (req, res) => {
       } else {
         console.log("[Publish] Directing post to Facebook...");
         pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
+      }
 
-        // NATIVE DIRECT CO-PUBLISH TO INSTAGRAM FEED
-        try {
-          console.log("[Publish] Directing post to Instagram Feed...");
-          let igPublicUrl = publicImageUrl;
-          if (!igPublicUrl.startsWith('http') && req.headers.host) {
-            const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
-            igPublicUrl = `${protocol}//${req.headers.host}${publicImageUrl}`;
-          }
-          await publishToInstagram(igPublicUrl, caption, false);
-        } catch (ige) {
-          console.error("[Publish] Instagram feed publishing failed:", ige.message);
-          deliveryError = `Facebook OK. Instagram Fallo: ${ige.message}`;
+      // CO-PUBLISH TO INSTAGRAM FEED for BOTH channels (facebook and n8n)
+      try {
+        console.log("[Publish] Co-publishing to Instagram Feed...");
+        let igPublicUrl = publicImageUrl;
+        if (!igPublicUrl.startsWith('http') && req.headers.host) {
+          const protocol = req.headers.referer ? new URL(req.headers.referer).protocol : 'http:';
+          igPublicUrl = `${protocol}//${req.headers.host}${publicImageUrl}`;
         }
+        await publishToInstagram(igPublicUrl, caption, false);
+        console.log("[Publish] Instagram Feed co-publish successful!");
+      } catch (ige) {
+        console.error("[Publish] Instagram feed co-publish failed (main channel succeeded):", ige.message);
+        deliveryError = `${config.publisherChannel === 'n8n' ? 'N8N OK' : 'Facebook OK'}. Instagram Fallo: ${ige.message}`;
       }
     } catch (pe) {
       console.error("[Publish] Webhook/Facebook delivery failed:", pe.message);
@@ -2745,14 +2746,16 @@ cron.schedule('* * * * *', async () => {
         } else {
           console.log(`[Scheduler] Directing automated post to Facebook Page...`);
           pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
+        }
 
-          console.log(`[Scheduler] Directing automated post to Instagram Feed...`);
-          try {
-            await publishToInstagram(publicImageUrl, caption, false);
-            console.log(`[Scheduler] Automated post successfully published to Instagram Feed!`);
-          } catch (igErr) {
-            console.error(`[Scheduler] Direct Instagram Feed publish failed:`, igErr.message);
-          }
+        // Co-publish to Instagram Feed for BOTH channels (facebook and n8n)
+        console.log(`[Scheduler] Co-publishing to Instagram Feed...`);
+        try {
+          await publishToInstagram(publicImageUrl, caption, false);
+          console.log(`[Scheduler] Automated post successfully co-published to Instagram Feed!`);
+        } catch (igErr) {
+          console.error(`[Scheduler] Instagram Feed co-publish failed (main channel succeeded):`, igErr.message);
+          deliveryError = `Instagram fallo: ${igErr.message}`;
         }
       } catch (err) {
         console.error(`[Scheduler] Delivery failed, registering with error fallback...`, err.message);
