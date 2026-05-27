@@ -1172,9 +1172,15 @@ class AutoPublisherApp {
       });
 
       const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || data.warning || "Fallo en el servidor al publicar");
+      if (!response.ok || data.error) {
+        throw new Error(data.error || data.warning || "Fallo en el servidor al publicar");
+      }
 
-      this.showToast("¡Republicado con Éxito!", data.post.simulated ? "Simulación guardada." : "Enviado a Meta Graph API correctamente.", "success");
+      if (data.warning) {
+        this.showToast("Publicado Parcialmente", data.warning, "warning");
+      } else {
+        this.showToast("¡Republicado con Éxito!", data.post.simulated ? "Simulación guardada." : "Enviado a Meta Graph API correctamente.", "success");
+      }
       
       document.getElementById('modal-republish').classList.add('hide');
       await this.fetchConfig();
