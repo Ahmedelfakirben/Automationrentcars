@@ -1146,7 +1146,8 @@ class AutoPublisherApp {
         bodyData = {
           carId: carId,
           imageName: imageName,
-          imageUrl: imageUrl,
+          alreadyGeneratedImageUrl: imageUrl,
+          alreadyGeneratedImageName: imageUrl.split('/').pop(),
           postText: text,
           hashtags: ""
         };
