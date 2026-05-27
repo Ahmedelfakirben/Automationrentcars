@@ -1285,7 +1285,7 @@ async function publishToInstagram(imageUrl, caption, isStory = false) {
 
     for (let i = 0; i < maxPolls; i++) {
       console.log(`[Instagram] Polling container ${containerId} status (Attempt ${i + 1}/${maxPolls})...`);
-      const statusRes = await fetch(`https://graph.facebook.com/v19.0/${containerId}?fields=status_code,error&access_token=${accessToken}`);
+      const statusRes = await fetch(`https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`);
       statusData = await statusRes.json();
       
       if (!statusRes.ok) {
