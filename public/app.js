@@ -265,6 +265,7 @@ class AutoPublisherApp {
     this.setupTelemetryListeners();
     this.setupLanguageListener();
     this.setupErrorListeners();
+    this.setupRepublishListeners();
     this.applyTranslations();
 
     // Fetch initial workspace data
@@ -1093,6 +1094,95 @@ class AutoPublisherApp {
     }
   }
 
+  // Handle Republish
+  setupRepublishListeners() {
+    const btnPost = document.getElementById('btn-republish-post');
+    const btnStory = document.getElementById('btn-republish-story');
+
+    if (btnPost) {
+      btnPost.addEventListener('click', async () => {
+        await this.executeRepublish('/api/publish', btnPost);
+      });
+    }
+
+    if (btnStory) {
+      btnStory.addEventListener('click', async () => {
+        await this.executeRepublish('/api/publish-story', btnStory);
+      });
+    }
+  }
+
+  republishPost(postId) {
+    const post = this.config.publishedPosts.find(p => p.id === postId);
+    if (!post) return;
+
+    document.getElementById('republish-car-id').value = post.carId;
+    document.getElementById('republish-image-name').value = post.imageName;
+    document.getElementById('republish-image-url').value = post.imageUrl;
+    document.getElementById('republish-text').value = post.caption;
+    document.getElementById('republish-image').src = post.imageUrl;
+
+    document.getElementById('modal-republish').classList.remove('hide');
+  }
+
+  async executeRepublish(endpoint, btn) {
+    const carId = document.getElementById('republish-car-id').value;
+    const imageName = document.getElementById('republish-image-name').value;
+    const imageUrl = document.getElementById('republish-image-url').value;
+    const text = document.getElementById('republish-text').value.trim();
+
+    if (!text) {
+      this.showToast("Atención", "El texto no puede estar vacío.", "info");
+      return;
+    }
+
+    btn.disabled = true;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div> Publicando...`;
+
+    try {
+      let bodyData = {};
+      if (endpoint === '/api/publish') {
+        bodyData = {
+          carId: carId,
+          imageName: imageName,
+          imageUrl: imageUrl,
+          postText: text,
+          hashtags: ""
+        };
+      } else {
+        bodyData = {
+          storyText: text,
+          stickerCta: "¡Reserva Ahora!",
+          imageUrl: imageUrl,
+          imageName: imageName,
+          musicSuggestion: "Música en tendencia"
+        };
+      }
+
+      const response = await authFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData)
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || data.warning || "Fallo en el servidor al publicar");
+
+      this.showToast("¡Republicado con Éxito!", data.post.simulated ? "Simulación guardada." : "Enviado a Meta Graph API correctamente.", "success");
+      
+      document.getElementById('modal-republish').classList.add('hide');
+      await this.fetchConfig();
+      this.renderHistoryTable(); // Refresh the table
+    } catch (err) {
+      console.error(err);
+      this.showToast("Fallo al Republicar", err.message || "Asegúrate de que tus credenciales estén activas.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  }
+
   // Save configurations in Settings Tab
   setupSettingsListeners() {
     const btnSaveSettings = document.getElementById('btn-save-settings');
@@ -1438,9 +1528,12 @@ class AutoPublisherApp {
           <div class="table-caption-cell" title="${post.caption}">${post.caption}</div>
         </td>
         <td>
-          <a href="${post.facebookUrl}" target="_blank" class="btn-link-action">
+          <a href="${post.facebookUrl}" target="_blank" class="btn-link-action" style="margin-right: 10px;">
             <i data-lucide="external-link" style="width: 14px; height: 14px"></i> Visitar
           </a>
+          <button class="btn btn-xs btn-outline" onclick="app.republishPost('${post.id}')" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px;">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px"></i> Republicar
+          </button>
         </td>
         <td>
           <span class="status-pill ${post.simulated ? 'simulated' : 'real'}">

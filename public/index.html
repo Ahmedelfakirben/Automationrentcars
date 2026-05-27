@@ -878,6 +878,47 @@
     </main>
   </div>
 
+  <!-- Modal Republish -->
+  <style>
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.75); z-index: 9999;
+      display: flex; justify-content: center; align-items: center;
+      backdrop-filter: blur(4px);
+      opacity: 1; transition: opacity 0.2s;
+    }
+    .modal-overlay.hide {
+      opacity: 0; pointer-events: none;
+    }
+  </style>
+  <div id="modal-republish" class="modal-overlay hide">
+    <div class="modal-content" style="max-width: 500px; width: 90%; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+      <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.1);">
+        <h3 style="margin: 0; font-size: 16px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="refresh-cw" style="width: 18px; height: 18px; color: #a855f7;"></i> Republicar Contenido
+        </h3>
+        <button class="btn-icon" onclick="document.getElementById('modal-republish').classList.add('hide')" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x" style="width: 20px; height: 20px;"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="height: 200px; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 1px solid var(--border);">
+          <img id="republish-image" src="" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <label style="margin-bottom: 6px; display: block;">Texto de la Publicación / Historia:</label>
+          <textarea id="republish-text" class="form-control" rows="6" style="resize: vertical;"></textarea>
+        </div>
+        <input type="hidden" id="republish-car-id">
+        <input type="hidden" id="republish-image-name">
+        <input type="hidden" id="republish-image-url">
+      </div>
+      <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; background: rgba(0,0,0,0.1); justify-content: flex-end; flex-wrap: wrap;">
+        <button class="btn btn-secondary" onclick="document.getElementById('modal-republish').classList.add('hide')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-republish-post" style="background: #3b82f6; border-color: #3b82f6;"><i data-lucide="facebook" style="width: 16px; height: 16px;"></i> Publicar Feed</button>
+        <button class="btn btn-primary" id="btn-republish-story" style="background: linear-gradient(135deg, #d946ef 0%, #a855f7 100%); border: none;"><i data-lucide="instagram" style="width: 16px; height: 16px;"></i> Publicar Story</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
