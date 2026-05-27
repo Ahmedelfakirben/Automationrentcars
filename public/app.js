@@ -444,50 +444,20 @@ class AutoPublisherApp {
       if (eventsList) eventsList.value = (this.config.calendar.events || []).join('\n');
     }
 
-    // Set Publisher Channel & Webhook
-    const channelSelect = document.getElementById('settings-publisher-channel');
-    const n8nWebhookInput = document.getElementById('settings-n8n-webhook');
-    const n8nUrlGroup = document.getElementById('n8n-url-group');
-
-    if (channelSelect) {
-      channelSelect.value = this.config.publisherChannel || 'facebook';
-      if (channelSelect.value === 'n8n') {
-        n8nUrlGroup.classList.remove('hide');
-      } else {
-        n8nUrlGroup.classList.add('hide');
-      }
-    }
-    if (n8nWebhookInput) {
-      n8nWebhookInput.value = this.config.n8nWebhookUrl || '';
-    }
-
-    // Update publish button copy dynamically
+    // Update publish button label (always Facebook + Instagram now)
     const btnPublish = document.getElementById('btn-publish-post');
     if (btnPublish) {
-      if (this.config.publisherChannel === 'n8n') {
-        btnPublish.innerHTML = `<i data-lucide="send"></i> Enviar Post a N8N Webhook`;
-      } else {
-        btnPublish.innerHTML = `<i data-lucide="send"></i> Publicar Ahora en Facebook`;
-      }
+      btnPublish.innerHTML = `<i data-lucide="send"></i> Publicar en Facebook + Instagram`;
     }
 
-    // Show/hide simulation notice based on current channel credentials
+    // Show/hide simulation notice based on Facebook credentials
     const notice = document.getElementById('fb-simulation-notice');
     if (notice) {
-      if (this.config.publisherChannel === 'n8n') {
-        if (!this.config.n8nWebhookUrl || this.config.n8nWebhookUrl.trim() === "") {
-          notice.innerHTML = `<i data-lucide="info"></i> Modo Simulación Activo (Sin URL de webhook N8N)`;
-          notice.classList.remove('hide');
-        } else {
-          notice.classList.add('hide');
-        }
+      if (!this.config.hasFbKey) {
+        notice.innerHTML = `<i data-lucide="info"></i> Modo Simulación Activo (Sin Access Token de Facebook)`;
+        notice.classList.remove('hide');
       } else {
-        if (!this.config.hasFbKey) {
-          notice.innerHTML = `<i data-lucide="info"></i> Modo Simulación Activo (Sin Access Token de Facebook)`;
-          notice.classList.remove('hide');
-        } else {
-          notice.classList.add('hide');
-        }
+        notice.classList.add('hide');
       }
       lucide.createIcons();
     }
@@ -1127,18 +1097,6 @@ class AutoPublisherApp {
   setupSettingsListeners() {
     const btnSaveSettings = document.getElementById('btn-save-settings');
     const btnSaveCalendar = document.getElementById('btn-save-calendar');
-    const channelSelect = document.getElementById('settings-publisher-channel');
-
-    if (channelSelect) {
-      channelSelect.addEventListener('change', () => {
-        const group = document.getElementById('n8n-url-group');
-        if (channelSelect.value === 'n8n') {
-          group.classList.remove('hide');
-        } else {
-          group.classList.add('hide');
-        }
-      });
-    }
 
     if (btnSaveSettings) {
       btnSaveSettings.addEventListener('click', async () => {
@@ -1148,8 +1106,6 @@ class AutoPublisherApp {
         try {
           const schedulerEnabled = document.getElementById('settings-scheduler-enabled').checked;
           const bgReplacementEnabled = document.getElementById('settings-bg-replacement-enabled').checked;
-          const publisherChannel = document.getElementById('settings-publisher-channel').value;
-          const n8nWebhookUrl = document.getElementById('settings-n8n-webhook').value.trim();
 
           const storiesMorning = document.getElementById('settings-stories-morning').value.trim();
           const storiesAfternoon = document.getElementById('settings-stories-afternoon').value.trim();
@@ -1181,8 +1137,7 @@ class AutoPublisherApp {
                 morningTime: storiesMorning,
                 afternoonTime: storiesAfternoon
               },
-              publisherChannel: publisherChannel,
-              n8nWebhookUrl: n8nWebhookUrl,
+              publisherChannel: 'facebook',
               bgReplacementEnabled: bgReplacementEnabled,
               apiKeys: {
                 groqKey,
@@ -1506,8 +1461,7 @@ class AutoPublisherApp {
       groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       photoroom: { requests: 0, success: 0, failed: 0 },
       supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-      facebook: { attempts: 0, success: 0, failed: 0 },
-      n8n: { attempts: 0, success: 0, failed: 0 }
+      facebook: { attempts: 0, success: 0, failed: 0 }
     };
     const thresholds = this.config.usageAlertThresholds || {
       groqTokenLimit: 500000,
@@ -1535,11 +1489,9 @@ class AutoPublisherApp {
     document.getElementById('stat-supabase-downloads').innerText = stats.supabase.storageDownloads;
     document.getElementById('stat-supabase-uploads').innerText = stats.supabase.storageUploads;
     
-    // Update FB / N8N DOM
+    // Update FB / Instagram DOM
     document.getElementById('stat-pub-fb-attempts').innerText = stats.facebook.attempts;
     document.getElementById('stat-pub-fb-success').innerText = stats.facebook.success;
-    document.getElementById('stat-pub-n8n-attempts').innerText = stats.n8n.attempts;
-    document.getElementById('stat-pub-n8n-success').innerText = stats.n8n.success;
 
     // Threshold values inputs
     document.getElementById('threshold-groq-tokens').value = thresholds.groqTokenLimit;

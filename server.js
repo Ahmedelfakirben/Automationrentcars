@@ -166,15 +166,13 @@ async function getConfig() {
             scheduler: { enabled: true, slots: [] },
             calendar: { promotions: [], events: [] },
             publisherChannel: 'facebook',
-            n8nWebhookUrl: '',
             bgReplacementEnabled: false,
             publishedPosts: [],
             usageStats: {
               groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
               photoroom: { requests: 0, success: 0, failed: 0 },
               supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-              facebook: { attempts: 0, success: 0, failed: 0 },
-              n8n: { attempts: 0, success: 0, failed: 0 }
+              facebook: { attempts: 0, success: 0, failed: 0 }
             },
             usageAlertThresholds: {
               groqTokenLimit: 500000,
@@ -196,7 +194,6 @@ async function getConfig() {
       config.hasPhotoroomKey = !!process.env.PHOTOROOM_API_KEY && process.env.PHOTOROOM_API_KEY.trim() !== "";
       
       if (!config.publisherChannel) config.publisherChannel = 'facebook';
-      if (!config.n8nWebhookUrl) config.n8nWebhookUrl = '';
       if (config.bgReplacementEnabled === undefined) config.bgReplacementEnabled = false;
 
       if (!config.usageStats) {
@@ -204,8 +201,7 @@ async function getConfig() {
           groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           photoroom: { requests: 0, success: 0, failed: 0 },
           supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-          facebook: { attempts: 0, success: 0, failed: 0 },
-          n8n: { attempts: 0, success: 0, failed: 0 }
+          facebook: { attempts: 0, success: 0, failed: 0 }
         };
       }
       if (!config.usageAlertThresholds) {
@@ -234,7 +230,6 @@ async function getConfig() {
     parsed.hasFbKey = !!process.env.FACEBOOK_PAGE_ACCESS_TOKEN && process.env.FACEBOOK_PAGE_ACCESS_TOKEN.trim() !== "";
     parsed.hasPhotoroomKey = !!process.env.PHOTOROOM_API_KEY && process.env.PHOTOROOM_API_KEY.trim() !== "";
     if (!parsed.publisherChannel) parsed.publisherChannel = 'facebook';
-    if (!parsed.n8nWebhookUrl) parsed.n8nWebhookUrl = '';
     if (parsed.bgReplacementEnabled === undefined) parsed.bgReplacementEnabled = false;
     
     if (!parsed.usageStats) {
@@ -242,8 +237,7 @@ async function getConfig() {
         groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         photoroom: { requests: 0, success: 0, failed: 0 },
         supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-        facebook: { attempts: 0, success: 0, failed: 0 },
-        n8n: { attempts: 0, success: 0, failed: 0 }
+        facebook: { attempts: 0, success: 0, failed: 0 }
       };
     }
     if (!parsed.usageAlertThresholds) {
@@ -263,15 +257,13 @@ async function getConfig() {
       scheduler: { enabled: true, slots: [] },
       calendar: { promotions: [], events: [] },
       publisherChannel: 'facebook',
-      n8nWebhookUrl: '',
       bgReplacementEnabled: false,
       publishedPosts: [],
       usageStats: {
         groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         photoroom: { requests: 0, success: 0, failed: 0 },
         supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-        facebook: { attempts: 0, success: 0, failed: 0 },
-        n8n: { attempts: 0, success: 0, failed: 0 }
+        facebook: { attempts: 0, success: 0, failed: 0 }
       },
       usageAlertThresholds: {
         groqTokenLimit: 500000,
@@ -345,10 +337,6 @@ async function trackUsage(category, metric, value = 1) {
       config.usageStats.facebook.attempts += 1;
       if (value === 'success') config.usageStats.facebook.success += 1;
       if (value === 'failed') config.usageStats.facebook.failed += 1;
-    } else if (category === 'n8n') {
-      config.usageStats.n8n.attempts += 1;
-      if (value === 'success') config.usageStats.n8n.success += 1;
-      if (value === 'failed') config.usageStats.n8n.failed += 1;
     }
 
     await saveConfig(config);
@@ -1103,7 +1091,6 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
     let imgBuffer = null;
 
     if (isAlreadyPublicUrl) {
-      // Image is already on Supabase CDN — fetch directly with timeout
       console.log(`[Auto Story] Fetching catalog image from Supabase CDN: ${imageUrl}...`);
       const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
       if (!imgRes.ok) throw new Error(`CDN fetch failed: ${imgRes.status} ${imgRes.statusText}`);
@@ -1143,7 +1130,6 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
     console.log(`[Auto Story] 9:16 Image ready. URL: ${igPublicUrl}`);
   } catch (err) {
     console.error("[Auto Story] 9:16 formatting failed, falling back to original image:", err.message);
-    // When image was already a CDN URL, use it directly — Meta can download it on its own
     if (isAlreadyPublicUrl) {
       igPublicUrl = imageUrl;
       console.log(`[Auto Story] Using original CDN URL as fallback for Meta: ${igPublicUrl}`);
@@ -1169,67 +1155,46 @@ async function publishSingleStory(storyText, stickerCta, imageUrl, imageName, mu
   }
 
   try {
-    if (config.publisherChannel === 'n8n') {
-      console.log("[Auto Story] Pushing Story to N8N...");
-      const response = await fetch(config.n8nWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'story',
-          text: storyText,
-          cta: stickerCta,
-          imageUrl: igPublicUrl,
-          imageName: imageName,
-          music: musicSuggestion
-        })
-      });
-      if (response.ok) {
-        pubResult = { simulated: false, postId: `n8n_story_${Date.now()}`, url: config.n8nWebhookUrl };
-      } else {
-        throw new Error(`N8N Webhook responded with: ${response.status}`);
+    console.log("[Auto Story] Publishing Story to Instagram and Facebook Stories...");
+
+    let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+    let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
+    let igError = null;
+    let fbError = null;
+
+    // 1. Publish to Instagram Story
+    try {
+      igResult = await publishToInstagram(igPublicUrl, storyText, true);
+    } catch (err) {
+      console.error("[Auto Story] Instagram Story failed:", err.message);
+      igError = err.message;
+    }
+
+    // 2. Publish to Facebook Story
+    if (processedStoryBuffer) {
+      try {
+        fbResult = await publishToFacebookStory(processedStoryBuffer);
+      } catch (err) {
+        console.error("[Auto Story] Facebook Story failed:", err.message);
+        fbError = err.message;
       }
     } else {
-      console.log("[Auto Story] Publishing Story to Instagram and Facebook Stories...");
-      
-      let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
-      let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
-      let igError = null;
-      let fbError = null;
-
-      // 1. Publish to Instagram Story
-      try {
-        igResult = await publishToInstagram(igPublicUrl, storyText, true);
-      } catch (err) {
-        console.error("[Auto Story] Instagram Story failed:", err.message);
-        igError = err.message;
-      }
-
-      // 2. Publish to Facebook Story
-      if (processedStoryBuffer) {
-        try {
-          fbResult = await publishToFacebookStory(processedStoryBuffer);
-        } catch (err) {
-          console.error("[Auto Story] Facebook Story failed:", err.message);
-          fbError = err.message;
-        }
-      } else {
-        fbError = "Image buffer unavailable";
-      }
-
-      if (igError && fbError) {
-        throw new Error(`Ambas publicaciones de historia fallaron. IG: ${igError}. FB: ${fbError}`);
-      } else if (igError) {
-        deliveryError = `Instagram fallo: ${igError}`;
-      } else if (fbError) {
-        deliveryError = `Facebook Story fallo: ${fbError}`;
-      }
-
-      pubResult = {
-        simulated: igResult.simulated && fbResult.simulated,
-        postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
-        url: igResult.url
-      };
+      fbError = "Image buffer unavailable";
     }
+
+    if (igError && fbError) {
+      throw new Error(`Ambas publicaciones de historia fallaron. IG: ${igError}. FB: ${fbError}`);
+    } else if (igError) {
+      deliveryError = `Instagram fallo: ${igError}`;
+    } else if (fbError) {
+      deliveryError = `Facebook Story fallo: ${fbError}`;
+    }
+
+    pubResult = {
+      simulated: igResult.simulated && fbResult.simulated,
+      postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
+      url: igResult.url
+    };
   } catch (pe) {
     console.error("[Auto Story] Delivery failed:", pe.message);
     deliveryError = pe.message;
@@ -1381,66 +1346,6 @@ async function publishToInstagram(imageUrl, caption, isStory = false) {
     };
   } catch (err) {
     console.error("Instagram Publishing Error:", err);
-    throw err;
-  }
-}
-
-// Publish to N8N Webhook (Dynamic Multipart Payload)
-async function publishToN8N(imageBuffer, imageName, caption, config) {
-  const webhookUrl = config.n8nWebhookUrl;
-
-  if (!webhookUrl || webhookUrl.trim() === "") {
-    console.warn("N8N Webhook URL missing. Operating in SIMULATION Mode.");
-    return {
-      simulated: true,
-      postId: "sim_n8n_" + Math.random().toString(36).substr(2, 9),
-      url: "https://n8n.io/webhook/simulation"
-    };
-  }
-
-  // Create multipart/form-data payload natively
-  const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substr(2, 16);
-  const parts = [];
-
-  // Append caption text
-  parts.push(
-    `--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`
-  );
-
-  // Append binary image file
-  parts.push(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${imageName}"\r\nContent-Type: image/jpeg\r\n\r\n`
-  );
-
-  const headerBuffer = Buffer.from(parts.join(''));
-  const footerBuffer = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const payloadBuffer = Buffer.concat([headerBuffer, imageBuffer, footerBuffer]);
-
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`
-      },
-      body: payloadBuffer
-    });
-
-    if (!response.ok) {
-      await trackUsage('n8n', null, 'failed');
-      throw new Error(`N8N Webhook returned status ${response.status}`);
-    }
-
-    const resultText = await response.text();
-    console.log("[N8N Webhook Response]:", resultText);
-
-    await trackUsage('n8n', null, 'success');
-    return {
-      simulated: false,
-      postId: "n8n_post_" + Date.now(),
-      url: webhookUrl
-    };
-  } catch (err) {
-    console.error("N8N Webhook Publishing Error:", err);
     throw err;
   }
 }
@@ -1833,8 +1738,7 @@ app.post('/api/usage/reset', async (req, res) => {
       groq: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       photoroom: { requests: 0, success: 0, failed: 0 },
       supabase: { reads: 0, writes: 0, storageDownloads: 0, storageUploads: 0 },
-      facebook: { attempts: 0, success: 0, failed: 0 },
-      n8n: { attempts: 0, success: 0, failed: 0 }
+      facebook: { attempts: 0, success: 0, failed: 0 }
     };
     await saveConfig(config);
     res.json({ success: true, config });
@@ -2056,15 +1960,10 @@ app.post('/api/publish', async (req, res) => {
     let deliveryError = null;
 
     try {
-      if (config.publisherChannel === 'n8n') {
-        console.log("[Publish] Directing post to N8N Webhook...");
-        pubResult = await publishToN8N(watermarkedImageBuffer, imageName, caption, config);
-      } else {
-        console.log("[Publish] Directing post to Facebook...");
-        pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
-      }
+      console.log("[Publish] Directing post to Facebook...");
+      pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
 
-      // CO-PUBLISH TO INSTAGRAM FEED for BOTH channels (facebook and n8n)
+      // CO-PUBLISH TO INSTAGRAM FEED
       try {
         console.log("[Publish] Co-publishing to Instagram Feed...");
         let igPublicUrl = publicImageUrl;
@@ -2075,16 +1974,16 @@ app.post('/api/publish', async (req, res) => {
         await publishToInstagram(igPublicUrl, caption, false);
         console.log("[Publish] Instagram Feed co-publish successful!");
       } catch (ige) {
-        console.error("[Publish] Instagram feed co-publish failed (main channel succeeded):", ige.message);
-        deliveryError = `${config.publisherChannel === 'n8n' ? 'N8N OK' : 'Facebook OK'}. Instagram Fallo: ${ige.message}`;
+        console.error("[Publish] Instagram feed co-publish failed (Facebook succeeded):", ige.message);
+        deliveryError = `Facebook OK. Instagram Fallo: ${ige.message}`;
       }
     } catch (pe) {
-      console.error("[Publish] Webhook/Facebook delivery failed:", pe.message);
+      console.error("[Publish] Facebook delivery failed:", pe.message);
       deliveryError = pe.message;
       pubResult = {
         simulated: true,
         postId: `fail_${Date.now()}`,
-        url: config.publisherChannel === 'n8n' ? (config.n8nWebhookUrl || "https://n8n.io/simulation") : "https://www.facebook.com/2s1mrentcar/posts/simulation"
+        url: "https://www.facebook.com/2s1mrentcar/posts/simulation"
       };
     }
 
@@ -2227,67 +2126,46 @@ app.post('/api/publish-story', async (req, res) => {
     }
 
     try {
-      if (config.publisherChannel === 'n8n') {
-        console.log("[Publish Story] Directing Story to N8N Webhook...");
-        const response = await fetch(config.n8nWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'story',
-            text: storyText,
-            cta: stickerCta,
-            imageUrl: igPublicUrl,
-            imageName: imageName,
-            music: musicSuggestion
-          })
-        });
-        if (response.ok) {
-          pubResult = { simulated: false, postId: `n8n_story_${Date.now()}`, url: config.n8nWebhookUrl };
-        } else {
-          throw new Error(`N8N Webhook respondio con status: ${response.status}`);
+      console.log("[Publish Story] Publishing Story directly to Instagram and Facebook Stories...");
+      
+      let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
+      let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
+      let igError = null;
+      let fbError = null;
+
+      // 1. Publish to Instagram Story
+      try {
+        igResult = await publishToInstagram(igPublicUrl, storyText, true);
+      } catch (err) {
+        console.error("[Publish Story] Instagram Story publishing failed:", err.message);
+        igError = err.message;
+      }
+
+      // 2. Publish to Facebook Story
+      if (processedStoryBuffer) {
+        try {
+          fbResult = await publishToFacebookStory(processedStoryBuffer);
+        } catch (err) {
+          console.error("[Publish Story] Facebook Story publishing failed:", err.message);
+          fbError = err.message;
         }
       } else {
-        console.log("[Publish Story] Publishing Story directly to Instagram and Facebook Stories...");
-        
-        let igResult = { simulated: true, url: "https://www.instagram.com/2s1mrentcar/simulation" };
-        let fbResult = { simulated: true, url: "https://www.facebook.com/2s1mrentcar/stories/simulation" };
-        let igError = null;
-        let fbError = null;
-
-        // 1. Publish to Instagram Story
-        try {
-          igResult = await publishToInstagram(igPublicUrl, storyText, true);
-        } catch (err) {
-          console.error("[Publish Story] Instagram Story publishing failed:", err.message);
-          igError = err.message;
-        }
-
-        // 2. Publish to Facebook Story
-        if (processedStoryBuffer) {
-          try {
-            fbResult = await publishToFacebookStory(processedStoryBuffer);
-          } catch (err) {
-            console.error("[Publish Story] Facebook Story publishing failed:", err.message);
-            fbError = err.message;
-          }
-        } else {
-          fbError = "Image buffer unavailable";
-        }
-
-        if (igError && fbError) {
-          throw new Error(`Ambas publicaciones fallaron. IG: ${igError}. FB: ${fbError}`);
-        } else if (igError) {
-          deliveryError = `Instagram fallo: ${igError}`;
-        } else if (fbError) {
-          deliveryError = `Facebook Story fallo: ${fbError}`;
-        }
-
-        pubResult = {
-          simulated: igResult.simulated && fbResult.simulated,
-          postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
-          url: igResult.url // Return Instagram URL as primary
-        };
+        fbError = "Image buffer unavailable";
       }
+
+      if (igError && fbError) {
+        throw new Error(`Ambas publicaciones fallaron. IG: ${igError}. FB: ${fbError}`);
+      } else if (igError) {
+        deliveryError = `Instagram fallo: ${igError}`;
+      } else if (fbError) {
+        deliveryError = `Facebook Story fallo: ${fbError}`;
+      }
+
+      pubResult = {
+        simulated: igResult.simulated && fbResult.simulated,
+        postId: igResult.postId || fbResult.postId || `story_${Date.now()}`,
+        url: igResult.url // Return Instagram URL as primary
+      };
     } catch (pe) {
       console.error("[Publish Story] Story delivery failed:", pe.message);
       deliveryError = pe.message;
@@ -2357,8 +2235,7 @@ app.post('/api/config', async (req, res) => {
       watermark: newSettings.watermark || currentConfig.watermark,
       scheduler: newSettings.scheduler || currentConfig.scheduler,
       calendar: newSettings.calendar || currentConfig.calendar,
-      publisherChannel: newSettings.publisherChannel || currentConfig.publisherChannel,
-      n8nWebhookUrl: newSettings.n8nWebhookUrl !== undefined ? newSettings.n8nWebhookUrl : currentConfig.n8nWebhookUrl,
+      publisherChannel: 'facebook',
       bgReplacementEnabled: newSettings.bgReplacementEnabled !== undefined ? newSettings.bgReplacementEnabled : currentConfig.bgReplacementEnabled,
       usageAlertThresholds: newSettings.usageAlertThresholds || currentConfig.usageAlertThresholds
     };
@@ -2735,35 +2612,30 @@ cron.schedule('* * * * *', async () => {
         }
       }
 
-      // 7. Publish based on Channel configured inside a try/catch
+      // 7. Publish to Facebook and co-publish to Instagram Feed
       let pubResult;
       let deliveryError = null;
 
       try {
-        if (config.publisherChannel === 'n8n') {
-          console.log(`[Scheduler] Pushing automated post to N8N...`);
-          pubResult = await publishToN8N(watermarkedImageBuffer, randomImageName, caption, config);
-        } else {
-          console.log(`[Scheduler] Directing automated post to Facebook Page...`);
-          pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
-        }
+        console.log(`[Scheduler] Directing automated post to Facebook Page...`);
+        pubResult = await publishToFacebook(watermarkedImageBuffer, caption);
 
-        // Co-publish to Instagram Feed for BOTH channels (facebook and n8n)
+        // Co-publish to Instagram Feed
         console.log(`[Scheduler] Co-publishing to Instagram Feed...`);
         try {
           await publishToInstagram(publicImageUrl, caption, false);
           console.log(`[Scheduler] Automated post successfully co-published to Instagram Feed!`);
         } catch (igErr) {
-          console.error(`[Scheduler] Instagram Feed co-publish failed (main channel succeeded):`, igErr.message);
+          console.error(`[Scheduler] Instagram Feed co-publish failed (Facebook succeeded):`, igErr.message);
           deliveryError = `Instagram fallo: ${igErr.message}`;
         }
       } catch (err) {
-        console.error(`[Scheduler] Delivery failed, registering with error fallback...`, err.message);
+        console.error(`[Scheduler] Facebook delivery failed:`, err.message);
         deliveryError = err.message;
         pubResult = {
           simulated: true,
           postId: `auto_fail_${Date.now()}`,
-          url: config.publisherChannel === 'n8n' ? (config.n8nWebhookUrl || "https://n8n.io/simulation") : "https://www.facebook.com/2s1mrentcar/posts/simulation"
+          url: "https://www.facebook.com/2s1mrentcar/posts/simulation"
         };
       }
 
